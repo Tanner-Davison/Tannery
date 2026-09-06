@@ -1,7 +1,9 @@
 #include "Swapchain.hpp"
+#include "vulkan_core.h"
 #include <algorithm>
 #include <limits>
 #include <print>
+#include <regex>
 #include <stdexcept>
 
 Swapchain::Swapchain(VkDevice                  pLogicalDevice,
@@ -9,22 +11,22 @@ Swapchain::Swapchain(VkDevice                  pLogicalDevice,
                      const SwapchainSupport&   support,
                      GLFWwindow*               pWindow,
                      const QueueFamilyIndices& indices)
-    : LogicalDeviceHandle(pLogicalDevice) {
-    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(support);
-    VkPresentModeKHR   presentMode   = chooseSwapPresentMode(support);
-    VkExtent2D         extent        = chooseSwapExtent(pWindow, support.capabilities);
+    : deviceHandle(pLogicalDevice) {
+    this->surfaceFormat = chooseSwapSurfaceFormat(support);
+    this->presentMode   = chooseSwapPresentMode(support);
+    this->extent        = chooseSwapExtent(pWindow, support.capabilities);
 
-    uint32_t imageCount = support.capabilities.minImageCount + 1;
+    uint32_t capabilityImageCount = support.capabilities.minImageCount + 1;
 
     /*This makes sure we do not exceed the capable max image count*/
     if (support.capabilities.maxImageCount > 0 &&
-        imageCount > support.capabilities.maxImageCount) {
-        imageCount = support.capabilities.maxImageCount;
+        capabilityImageCount > support.capabilities.maxImageCount) {
+        capabilityImageCount = support.capabilities.maxImageCount;
     }
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     createInfo.surface          = surface;
-    createInfo.minImageCount    = imageCount;
+    createInfo.minImageCount    = capabilityImageCount;
     createInfo.imageFormat      = surfaceFormat.format;
     createInfo.imageColorSpace  = surfaceFormat.colorSpace;
     createInfo.imageExtent      = extent;
@@ -65,16 +67,76 @@ Swapchain::Swapchain(VkDevice                  pLogicalDevice,
         VK_SUCCESS) {
         throw std::runtime_error("Error: Failed to create swapchain");
     }
+
+    uint32_t imagesCount;
+    vkGetSwapchainImagesKHR(this->deviceHandle, this->swapchain, &imagesCount, nullptr);
+
+    this->images.resize(imagesCount);
+
+    vkGetSwapchainImagesKHR(this->deviceHandle,
+                            this->swapchain,
+                            &imagesCount,
+                            this->images.data());
+
+    VkImageViewCreateInfo createImageViewInfo{};
+    createImageViewInfo.sType                       = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    createImageViewInfo.viewType                    = VK_IMAGE_VIEW_TYPE_2D;
+    createImageViewInfo.format                      = this->surfaceFormat.format;
+    createImageViewInfo.components.a                = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createImageViewInfo.components.b                = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createImageViewInfo.components.g                = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createImageViewInfo.components.r                = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    createImageViewInfo.subresourceRange.baseMipLevel   = 0;
+    createImageViewInfo.subresourceRange.levelCount     = 1;
+    createImageViewInfo.subresourceRange.baseArrayLayer = 0;
+    createImageViewInfo.subresourceRange.layerCount     = 1;
+
+    // resize imageViews to match the count of images;
+    this->imageViews.resize(this->images.size());
+
+    // create an Image View for every image we have
+    for (size_t i = 0; i < this->images.size(); i++) {
+        createImageViewInfo.image      = this->images[i];
+        VkResult createImageViewResult = vkCreateImageView(this->deviceHandle,
+                                                           &createImageViewInfo,
+                                                           nullptr,
+                                                           &this->imageViews[i]);
+        if (createImageViewResult != VK_SUCCESS) {
+            throw std::runtime_error("Error: Failed to create Image view");
+        }
+    }
 };
 
+// ####################################################################
+//  DESTRUCTOR
 Swapchain::~Swapchain() {
+    if (!this->imageViews.empty()) {
+        for (const auto& image : imageViews) {
+            vkDestroyImageView(this->deviceHandle, image, nullptr);
+        }
+    }
     if (this->swapchain != VK_NULL_HANDLE) {
-        vkDestroySwapchainKHR(this->LogicalDeviceHandle, this->swapchain, nullptr);
+        vkDestroySwapchainKHR(this->deviceHandle, this->swapchain, nullptr);
     }
 }
 
+// Retreive member Handles
+
 VkSwapchainKHR Swapchain::handle() const {
     return this->swapchain;
+};
+
+VkSurfaceFormatKHR Swapchain::formatHandle() const {
+    return this->surfaceFormat;
+};
+
+VkPresentModeKHR Swapchain::presentHandle() const {
+    return this->presentMode;
+};
+
+VkExtent2D Swapchain::extentHandle() const {
+    return this->extent;
 };
 
 /*_____________ SWAPCHAIN SETTINGS____________________________*/
@@ -129,8 +191,8 @@ VkExtent2D Swapchain::chooseSwapExtent(GLFWwindow*                     window,
                                    static_cast<uint32_t>(height)};
 
         actualExtent.width  = std::clamp(actualExtent.width,
-                                         capabilities.minImageExtent.width,
-                                         capabilities.maxImageExtent.width);
+                                        capabilities.minImageExtent.width,
+                                        capabilities.maxImageExtent.width);
         actualExtent.height = std::clamp(actualExtent.height,
                                          capabilities.minImageExtent.height,
                                          capabilities.maxImageExtent.height);

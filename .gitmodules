@@ -1,0 +1,3 @@
+[submodule "external/libs/minlog"]
+	path = external/libs/minlog
+	url = https://github.com/MuAlphaOmegaEpsilon/MinLog

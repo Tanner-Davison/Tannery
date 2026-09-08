@@ -7,6 +7,7 @@ set(CMAKE_CXX_COMPILER clang++)
 project(tannery LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON) # Makes it Fail-Loudly instead of silently downgrading
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Always generate compile_commands.json for clangd
 # FIND PACKAGES
 # -----------------------------------------------------------------------------------------
 find_package(Vulkan REQUIRED)
@@ -33,7 +34,7 @@ set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE) # Turns off deprecation warni
 add_subdirectory(external/libs/minlog EXCLUDE_FROM_ALL)
 set(CMAKE_WARN_DEPRECATED ON CACHE BOOL "" FORCE)
 
-set(TF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(TF_BUILD_TESTS ON CACHE BOOL "" FORCE)
 set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(external/libs/taskflow EXCLUDE_FROM_ALL)
 

@@ -1,5 +1,4 @@
 #include "Swapchain.hpp"
-#include "vulkan_core.h"
 #include <algorithm>
 #include <limits>
 #include <print>

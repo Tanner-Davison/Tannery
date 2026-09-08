@@ -2,7 +2,6 @@
 
 #include "queueFamilies.hpp"
 #include "swapchainSupport.hpp"
-#include "vulkan_core.h"
 #include <GLFW/glfw3.h>
 #include <vector>
 

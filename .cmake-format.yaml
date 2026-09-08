@@ -1,8 +1,10 @@
 format:
-  line_width: 80
+  line_width: 90
   tab_size: 4
 
   # Always break one argument per line instead of packing multiple per line
+  max_subgroups_hwrap: 3
+  max_pargs_hwrap: 6
 
   # Keep flow-control keywords (if/foreach/endif/etc) unindented relative to their body
   dangle_parens: false

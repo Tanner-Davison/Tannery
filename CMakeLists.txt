@@ -12,6 +12,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Always generate compile_commands.json fo
 # -----------------------------------------------------------------------------------------
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
+find_program(GLSLANG_VALIDATOR glslangValidator REQUIRED)
 
 set(SOURCES
     core/src/main.cpp
@@ -31,12 +32,12 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE) # Turns off deprecation warning
 
-add_subdirectory(external/libs/minlog EXCLUDE_FROM_ALL) # minlog
+add_subdirectory(deps/libs/minlog EXCLUDE_FROM_ALL) # minlog
 set(CMAKE_WARN_DEPRECATED ON CACHE BOOL "" FORCE)
 
 set(TF_BUILD_TESTS ON CACHE BOOL "" FORCE)
 set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-add_subdirectory(external/libs/taskflow EXCLUDE_FROM_ALL) # taskflow
+add_subdirectory(deps/libs/taskflow EXCLUDE_FROM_ALL) # taskflow
 
 # LINKING/INCLUDES
 # -------------------------------------------------------------------------------------------

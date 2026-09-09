@@ -59,13 +59,13 @@ add_dependencies(${PROJECT_NAME} Shaders)
 # MINLOG
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE) # Turns off deprecation warning
-add_subdirectory(deps/libs/minlog EXCLUDE_FROM_ALL) # minlog
+add_subdirectory(deps/minlog EXCLUDE_FROM_ALL) # minlog
 set(CMAKE_WARN_DEPRECATED ON CACHE BOOL "" FORCE)
 #
 # TASKFLOW
 set(TF_BUILD_TESTS ON CACHE BOOL "" FORCE)
 set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-add_subdirectory(deps/libs/taskflow EXCLUDE_FROM_ALL) # taskflow
+add_subdirectory(deps/taskflow EXCLUDE_FROM_ALL) # taskflow
 
 #
 # LINKING/INCLUDES

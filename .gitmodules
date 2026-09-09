@@ -1,3 +1,6 @@
-[submodule "external/libs/minlog"]
-	path = external/libs/minlog
+[submodule "deps/taskflow"]
+	path = deps/taskflow
+	url = https://github.com/taskflow/taskflow
+[submodule "deps/minlog"]
+	path = deps/minlog
 	url = https://github.com/MuAlphaOmegaEpsilon/MinLog

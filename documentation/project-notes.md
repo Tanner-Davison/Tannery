@@ -234,6 +234,35 @@ refactor surfaced and how they were fixed.
       Reverted; that extension is opportunistic again (enabled if present,
       simply skipped if not).
 
+15. **`VkRenderPass`** (new `RenderPass` class, `RenderPass.hpp`/`.cpp`) —
+    describes the shape of a frame's rendering *before* any actual image
+    views are bound to it (that binding happens later, per-frame, via
+    `VkFramebuffer`). Built from four pieces: a `VkAttachmentDescription`
+    for the single color attachment (format matches the swapchain's chosen
+    `surfaceFormat`, `loadOp = CLEAR`/`storeOp = STORE` since the triangle
+    needs to be visible after the pass, `initialLayout = UNDEFINED` since
+    clearing makes prior contents irrelevant, `finalLayout =
+    PRESENT_SRC_KHR` since the image goes straight to `vkQueuePresentKHR`
+    next); a `VkAttachmentReference` (`attachment = 0`, an *index* into the
+    attachments array, not a handle); a `VkSubpassDescription` referencing
+    it; and a `VkSubpassDependency` from `VK_SUBPASS_EXTERNAL` to subpass
+    `0`, both stage masks set to `VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT`,
+    forcing the subpass to wait until that stage rather than starting to
+    write color output before the swapchain image is actually available.
+    Two bugs caught in review before ever building: an accidental
+    `dependency.dstStageMask = 0;` typo (meant to be `srcAccessMask`)
+    silently reset the just-configured `dstStageMask` back to `0`,
+    defeating the entire synchronization point without any compiler error;
+    and `RenderPass renderPass;` was initially declared in `App.hpp`
+    *before* `device`/`swapchain`, so despite the `App.cpp` initializer
+    list writing `renderPass(device.handle(), swapchain.formatHandle())`
+    last (which reads correctly), C++ still constructs members in
+    declaration order regardless of initializer-list order — moved to be
+    the last-declared member, after `swapchain`, to fix it. Same pattern as
+    concept 14's bug list: this class matters because nothing about it is
+    checked by the type system, only by paying attention to declaration
+    order.
+
 **The "count, then array" convention** has now appeared four times
 (`glfwGetRequiredInstanceExtensions`, `vkEnumeratePhysicalDevices`,
 `vkGetPhysicalDeviceQueueFamilyProperties`, and implicitly in layer/extension
@@ -372,6 +401,22 @@ compatibility. The whole codebase was then restructured from flat functions +
 manual `cleanup.hpp` into RAII wrapper classes (`Window`, `VulkanInstance`,
 `Surface`, `LogicalDevice`, `Swapchain`) owned by a new `App` orchestrator —
 see "Current architecture" and concept 14 above; `cleanup.hpp` no longer
-exists. Next up: Step 8 — image views + render pass, which will need a new
-RAII wrapper of its own for the image views (and eventually the render pass)
-following the same pattern.
+exists.
+
+**Update (later session):** image views (`vkCreateImageView`/
+`vkDestroyImageView` per swapchain image) are done — folded directly into
+`Swapchain` as a `std::vector<VkImageView>` member rather than getting a
+separate wrapper class, since they're owned by and share the lifetime of the
+swapchain that produced their source images. Also done: the shader-compile
+side of Step 9 ahead of schedule — GLSL source (`data/shaders/triangle.vert`/
+`.frag`), `glslangValidator` wired into `CMakeLists.txt` via
+`find_program`/`add_custom_command`/`add_custom_target` to compile them to
+SPIR-V at build time (output to `${CMAKE_BINARY_DIR}/shaders/`, only
+recompiling a shader when its source changes).
+
+**Update (later session):** the render pass half of Step 8 is also done —
+see concept 15 above. Step 8 is now fully complete. Next up: Step 9, the
+graphics pipeline — the GLSL shader source and CMake shader-compile step are
+already done (see above), so the remaining work is `VkShaderModule` creation
+in C++, fixed-function pipeline state, pipeline layout, and
+`vkCreateGraphicsPipelines`.

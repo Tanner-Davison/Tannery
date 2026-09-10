@@ -10,7 +10,8 @@ App::App(int width, int height, const char* title)
     , indices(pickQueueFamilies(physicalDevice, surface.handle()))
     , device(physicalDevice, indices)
     , support(pickSwapchainSupport(physicalDevice, surface.handle()))
-    , swapchain(device.handle(), surface.handle(), support, window.handle(), indices) {}
+    , swapchain(device.handle(), surface.handle(), support, window.handle(), indices)
+    , renderPass(device.handle(), swapchain.formatHandle()) {}
 
 VkPhysicalDevice App::pickPhysicalDevice(VkInstance instance) {
     VkPhysicalDevice physicalDevice = getPhysicalDevice(instance);

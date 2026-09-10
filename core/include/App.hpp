@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LogicalDevice.hpp"
+#include "RenderPass.hpp"
 #include "Surface.hpp"
 #include "Swapchain.hpp"
 #include "VulkanInstance.hpp"
@@ -35,4 +36,5 @@ class App {
     LogicalDevice             device;
     SwapchainSupport          support;
     Swapchain                 swapchain;
+    RenderPass                renderPass;
 };

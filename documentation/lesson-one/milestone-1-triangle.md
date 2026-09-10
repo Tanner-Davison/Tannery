@@ -85,7 +85,18 @@ framebuffers → command buffers → sync/present.
 > structure. Full writeup in `project-notes.md` ("Current architecture" and
 > concept 14).
 
-- [ ] Step 8 — image views + render pass *(current)*
-- [ ] Step 9 — graphics pipeline
+- [x] Step 8 — image views + render pass (image views folded directly into
+      `Swapchain` rather than a separate wrapper class; render pass got its
+      own new `RenderPass` class — `VkAttachmentDescription` for the single
+      color attachment, `VkAttachmentReference` + `VkSubpassDescription` for
+      the one subpass, `VkSubpassDependency` synchronizing it against
+      `VK_SUBPASS_EXTERNAL` at the color-attachment-output stage, assembled
+      into `VkRenderPassCreateInfo` → `vkCreateRenderPass`. Wired into `App`
+      as the last-declared member, since it depends on both `device` and
+      `swapchain.formatHandle()`)
+- [ ] Step 9 — graphics pipeline *(current — shader-compile tooling already
+      done ahead of schedule: `data/shaders/triangle.vert`/`.frag`,
+      `glslangValidator` wired into CMake; still need `VkShaderModule`
+      creation in C++, fixed-function state, and pipeline layout)*
 - [ ] Step 10 — framebuffers + command buffers
 - [ ] Step 11 — render loop + sync

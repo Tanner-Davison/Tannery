@@ -24,7 +24,9 @@ set(SOURCES
     core/src/LogicalDevice.cpp
     core/src/Surface.cpp
     core/src/swapchainSupport.cpp
-    core/src/Swapchain.cpp)
+    core/src/Swapchain.cpp
+    core/src/RenderPass.cpp)
+
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/shaders") # Creates shaders folder in build

@@ -10,9 +10,18 @@ class Pipeline {
              const std::filesystem::path& pFilePathOne,
              const std::filesystem::path& pFilepathTwo);
 
+    // Copy && Move constructors
+    Pipeline(const Pipeline&)            = delete;
+    Pipeline& operator=(const Pipeline&) = delete;
+    Pipeline(Pipeline&&)                 = delete;
+    Pipeline& operator=(Pipeline&&)      = delete;
+
+    // Destructor
     ~Pipeline();
 
-    VkPipeline handle() const;
+    // Member Handles()
+    VkPipeline       pipelineHandle() const;
+    VkPipelineLayout pipelineLayoutHandle() const;
 
   private:
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;

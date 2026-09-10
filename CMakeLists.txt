@@ -25,7 +25,8 @@ set(SOURCES
     core/src/Surface.cpp
     core/src/swapchainSupport.cpp
     core/src/Swapchain.cpp
-    core/src/RenderPass.cpp)
+    core/src/RenderPass.cpp
+    core/src/shaderModule.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 

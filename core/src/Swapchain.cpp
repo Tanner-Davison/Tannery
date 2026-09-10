@@ -105,7 +105,6 @@ Swapchain::Swapchain(VkDevice                  pLogicalDevice,
     }
 };
 
-// ####################################################################
 //  DESTRUCTOR
 Swapchain::~Swapchain() {
     if (!this->imageViews.empty()) {

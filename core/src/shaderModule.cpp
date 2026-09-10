@@ -2,8 +2,8 @@
 #include <fstream>
 #include <stdexcept>
 
-std::vector<char> readFile(const std::filesystem::path& filename) {
-    std::ifstream file(filename, std::ios::binary | std::ios::ate);
+std::vector<char> readFile(const std::filesystem::path& filePath) {
+    std::ifstream file(filePath, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         throw std::runtime_error(
             "Error: unable to open .SPV file OR .SPV file does not exist");

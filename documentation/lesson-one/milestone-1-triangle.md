@@ -94,9 +94,28 @@ framebuffers → command buffers → sync/present.
       into `VkRenderPassCreateInfo` → `vkCreateRenderPass`. Wired into `App`
       as the last-declared member, since it depends on both `device` and
       `swapchain.formatHandle()`)
-- [ ] Step 9 — graphics pipeline *(current — shader-compile tooling already
-      done ahead of schedule: `data/shaders/triangle.vert`/`.frag`,
-      `glslangValidator` wired into CMake; still need `VkShaderModule`
-      creation in C++, fixed-function state, and pipeline layout)*
+- [ ] Step 9 — graphics pipeline *(current — in progress)*
+      - [x] shader-compile tooling (`data/shaders/triangle.vert`/`.frag`,
+        `glslangValidator` wired into CMake via `find_program`/
+        `add_custom_command`/`add_custom_target`)
+      - [x] `readFile`/`createShaderModule` free functions
+        (`core/include/shaderModule.hpp`, lowercase — free-function helper,
+        not an RAII class, per the project's naming convention)
+      - [x] new `Pipeline` class scaffolded (`Pipeline.hpp`/`.cpp`),
+        constructor takes `VkDevice`, `VkRenderPass`, `VkExtent2D`, and the
+        vertex/fragment shader paths
+      - [x] both `VkPipelineShaderStageCreateInfo` structs built (vertex +
+        fragment)
+      - [ ] combine into `VkPipelineShaderStageCreateInfo shaderStages[2]`
+        *(next up)*
+      - [ ] vertex input, input assembly, viewport/scissor, rasterizer,
+        multisampling, color blending state structs
+      - [ ] `VkPipelineLayoutCreateInfo` → `vkCreatePipelineLayout`
+      - [ ] `VkGraphicsPipelineCreateInfo` → `vkCreateGraphicsPipelines`
+      - [ ] destroy both shader modules after pipeline creation (they're
+        only needed as input, not kept alive)
+      - [ ] wire `Pipeline` into `App` (last-declared member, same reasoning
+        as `RenderPass` — needs `device`, `renderPass.handle()`, and
+        `swapchain.extentHandle()`)
 - [ ] Step 10 — framebuffers + command buffers
 - [ ] Step 11 — render loop + sync

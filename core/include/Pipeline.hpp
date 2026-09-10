@@ -1,14 +1,14 @@
 #pragma once
 #include <filesystem>
-#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan.h>
 
 class Pipeline {
   public:
     Pipeline(VkDevice                     pDevice,
              VkRenderPass                 pRenderPass,
              VkExtent2D                   pExtent,
-             const std::filesystem::path& pFilePathOne,
-             const std::filesystem::path& pFilepathTwo);
+             const std::filesystem::path& pVertPath,
+             const std::filesystem::path& pFragPath);
 
     // Copy && Move constructors
     Pipeline(const Pipeline&)            = delete;

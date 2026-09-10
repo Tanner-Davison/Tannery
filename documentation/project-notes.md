@@ -263,6 +263,34 @@ refactor surfaced and how they were fixed.
     checked by the type system, only by paying attention to declaration
     order.
 
+16. **Shader loading (`readFile`/`createShaderModule`, `shaderModule.hpp`/
+    `.cpp`) + `Pipeline` class scaffolding (`Pipeline.hpp`/`.cpp`, in
+    progress)** — unlike every wrapper class so far, a `VkShaderModule` is
+    transient: created, referenced while building the pipeline, and
+    destroyed immediately after, so this deliberately is **not** an RAII
+    class. `readFile` (`std::ifstream` opened with `ios::binary | ios::ate`
+    to read the file size via `tellg()` before seeking back to `0` and
+    reading) returns `std::vector<char>`; `createShaderModule` fills
+    `VkShaderModuleCreateInfo` (`codeSize` in bytes, `pCode` as
+    `reinterpret_cast<const uint32_t*>(code.data())` — legal because
+    `std::vector`'s allocator guarantees `max_align_t` alignment, which
+    satisfies `uint32_t`'s alignment requirement) and calls
+    `vkCreateShaderModule`. Both are free functions living in a
+    lowercase-named file (`shaderModule.hpp`, not `ShaderModule.hpp`) per
+    the established convention that lowercase-first files are
+    free-function/header-only helpers, not RAII wrapper classes. The new
+    `Pipeline` class (constructor: `VkDevice`, `VkRenderPass`, `VkExtent2D`,
+    vertex/fragment shader paths) calls both to build a
+    `VkPipelineShaderStageCreateInfo` per stage (`stage` = which shader
+    stage, `module` = the created `VkShaderModule`, `pName` = `"main"`,
+    the GLSL entry point name both shaders use). One bug caught in review:
+    a copy-pasted `fragStageInfo.module = vertModule;` (should have been
+    `fragModule`) — would have made the fragment stage try to execute a
+    module compiled with only a `Vertex` SPIR-V execution model, since
+    `glslangValidator` bakes the stage's execution model in at compile time
+    based on the `.vert`/`.frag` source; caught before `vkCreateGraphicsPipelines`
+    was ever reached.
+
 **The "count, then array" convention** has now appeared four times
 (`glfwGetRequiredInstanceExtensions`, `vkEnumeratePhysicalDevices`,
 `vkGetPhysicalDeviceQueueFamilyProperties`, and implicitly in layer/extension
@@ -385,6 +413,19 @@ required)` silently fails to work as intended — lowercase `required` isn't
   not bare `Vulkan` or `vulkan` — the `::` marks it as a real imported
   target (hard configure-time error if misspelled) rather than a raw
   linker flag guess.
+- **A stray `#include <vulkan/vulkan_core.h>` (or, once, just
+  `"vulkan_core.h"`) kept recurring across multiple new files** —
+  `RenderPass.cpp` three separate times, then `Pipeline.hpp` once, with the
+  same or similar redundant include each time. `<vulkan/vulkan.h>` (already
+  included via each class's header) transitively includes `vulkan_core.h`
+  itself — `vulkan.h` is the umbrella header that pulls in `vulkan_core.h`
+  (the platform-agnostic core API) plus whatever platform-specific surface
+  extensions apply, based on preprocessor defines. Including
+  `vulkan_core.h` directly is never necessary anywhere in this codebase and
+  was deliberately removed from `Swapchain.cpp` early on for that reason
+  (commit `6add02d`). Root cause suspected but not yet confirmed to be an
+  editor/clangd auto-import quick-fix triggering on an unresolved `Vk*`
+  symbol — worth checking editor settings if it keeps happening.
 
 ## Status
 
@@ -415,8 +456,17 @@ SPIR-V at build time (output to `${CMAKE_BINARY_DIR}/shaders/`, only
 recompiling a shader when its source changes).
 
 **Update (later session):** the render pass half of Step 8 is also done —
-see concept 15 above. Step 8 is now fully complete. Next up: Step 9, the
-graphics pipeline — the GLSL shader source and CMake shader-compile step are
-already done (see above), so the remaining work is `VkShaderModule` creation
-in C++, fixed-function pipeline state, pipeline layout, and
-`vkCreateGraphicsPipelines`.
+see concept 15 above. Step 8 is now fully complete.
+
+**Update (later session):** Step 9 (graphics pipeline) is underway — see
+concept 16 above. Done so far: `shaderModule.hpp`/`.cpp` (`readFile`,
+`createShaderModule`), `Pipeline` class scaffolded, both
+`VkPipelineShaderStageCreateInfo` structs built. Next up: combine them into
+a `VkPipelineShaderStageCreateInfo shaderStages[2]` array, then the
+fixed-function state structs (vertex input, input assembly,
+viewport/scissor, rasterizer, multisampling, color blending),
+`VkPipelineLayoutCreateInfo` → `vkCreatePipelineLayout`, and finally
+`VkGraphicsPipelineCreateInfo` → `vkCreateGraphicsPipelines`. `Pipeline`
+still needs to destroy both shader modules after pipeline creation, and
+still needs to be wired into `App` as a member. See
+`lesson-one/milestone-1-triangle.md` for the detailed sub-checklist.

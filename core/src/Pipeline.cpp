@@ -1,7 +1,25 @@
 #include "Pipeline.hpp"
 #include "shaderModule.hpp"
-#include <bits/types/cookie_io_functions_t.h>
-#include <vulkan/vulkan_core.h>
+#include <stdexcept>
+
+/* SHADER MODULE SCOPED GUARD */
+namespace {
+struct ShaderModuleGuard {
+    VkDevice       device;
+    VkShaderModule module;
+    ShaderModuleGuard(VkDevice pDevice, VkShaderModule pModule)
+        : device(pDevice)
+        , module(pModule) {};
+    // copy constructors
+    ShaderModuleGuard(const ShaderModuleGuard&)            = delete;
+    ShaderModuleGuard& operator=(const ShaderModuleGuard&) = delete;
+
+    // destructor
+    ~ShaderModuleGuard() {
+        vkDestroyShaderModule(device, module, nullptr);
+    }
+};
+} // namespace
 
 Pipeline::Pipeline(VkDevice                     pDevice,
                    VkRenderPass                 pRenderPass,
@@ -11,16 +29,19 @@ Pipeline::Pipeline(VkDevice                     pDevice,
     : device(pDevice) {
     std::vector<char> vertCode   = readFile(pVertPath);
     VkShaderModule    vertModule = createShaderModule(this->device, vertCode);
+    ShaderModuleGuard vertGuard{this->device, vertModule};
 
-    /* Stage Infos (vert, frag) */
+    /* Vert Stage Info */
     VkPipelineShaderStageCreateInfo vertStageInfo{}; // Vert Struct
     vertStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertStageInfo.stage  = VK_SHADER_STAGE_VERTEX_BIT;
     vertStageInfo.module = vertModule;
     vertStageInfo.pName  = "main";
 
+    /* Frag Stage Info */
     std::vector<char> fragCode   = readFile(pFragPath);
     VkShaderModule    fragModule = createShaderModule(this->device, fragCode);
+    ShaderModuleGuard fragGuard{this->device, fragModule};
 
     VkPipelineShaderStageCreateInfo fragStageInfo{}; // Frag Struct
     fragStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -92,6 +113,48 @@ Pipeline::Pipeline(VkDevice                     pDevice,
     colorBlending.logicOpEnable   = VK_FALSE;
     colorBlending.attachmentCount = 1;
     colorBlending.pAttachments    = &colorBlendAttachment;
+
+    /* PIPLINE LAYOUT */
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 0;
+    pipelineLayoutInfo.pSetLayouts    = nullptr;
+
+    if (vkCreatePipelineLayout(this->device,
+                               &pipelineLayoutInfo,
+                               nullptr,
+                               &this->pipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error("Error: could not create vkCreatePipelineLayout");
+
+        vkDestroyShaderModule(this->device, vertModule, nullptr);
+        vkDestroyShaderModule(this->device, fragModule, nullptr);
+    }
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount          = 2;
+    pipelineInfo.pStages             = shaderStages;
+    pipelineInfo.pVertexInputState   = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState      = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizerState;
+    pipelineInfo.pMultisampleState   = &multisampling;
+    pipelineInfo.pColorBlendState    = &colorBlending;
+    pipelineInfo.pDepthStencilState  = nullptr;
+    pipelineInfo.pDynamicState       = nullptr;
+    pipelineInfo.layout              = this->pipelineLayout;
+    pipelineInfo.renderPass          = pRenderPass;
+    pipelineInfo.subpass             = 0; // hardcoded since we only have 1 subpass
+
+    if (vkCreateGraphicsPipelines(this->device,
+                                  VK_NULL_HANDLE,
+                                  1,
+                                  &pipelineInfo,
+                                  nullptr,
+                                  &this->pipeline) != VK_SUCCESS) {
+        throw std::runtime_error("Error: Could Not Create vkCreateGraphicsPipelines");
+    }
+    vkDestroyShaderModule(this->device, vertModule, nullptr);
+    vkDestroyShaderModule(this->device, fragModule, nullptr);
 };
 
 Pipeline::~Pipeline() {

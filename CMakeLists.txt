@@ -26,7 +26,8 @@ set(SOURCES
     core/src/swapchainSupport.cpp
     core/src/Swapchain.cpp
     core/src/RenderPass.cpp
-    core/src/shaderModule.cpp)
+    core/src/shaderModule.cpp
+    core/src/Pipeline.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 
@@ -82,7 +83,12 @@ if(APPLE)
     target_link_libraries(${PROJECT_NAME} PUBLIC "-framework Metal" "-framework MetalKit"
                                                  "-framework Cocoa")
     target_compile_definitions(${PROJECT_NAME} PRIVATE VK_ENABLE_BETA_EXTENSIONS)
+
 endif()
+
+# Adds SHADER_DIR to CMAKE
+target_compile_definitions(${PROJECT_NAME}
+                           PRIVATE SHADER_DIR="${CMAKE_BINARY_DIR}/shaders")
 
 target_include_directories(
     ${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include

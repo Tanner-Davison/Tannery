@@ -125,10 +125,8 @@ Pipeline::Pipeline(VkDevice                     pDevice,
                                nullptr,
                                &this->pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("Error: could not create vkCreatePipelineLayout");
-
-        vkDestroyShaderModule(this->device, vertModule, nullptr);
-        vkDestroyShaderModule(this->device, fragModule, nullptr);
     }
+
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.stageCount          = 2;
@@ -153,8 +151,6 @@ Pipeline::Pipeline(VkDevice                     pDevice,
                                   &this->pipeline) != VK_SUCCESS) {
         throw std::runtime_error("Error: Could Not Create vkCreateGraphicsPipelines");
     }
-    vkDestroyShaderModule(this->device, vertModule, nullptr);
-    vkDestroyShaderModule(this->device, fragModule, nullptr);
 };
 
 Pipeline::~Pipeline() {

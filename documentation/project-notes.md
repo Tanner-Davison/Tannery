@@ -291,6 +291,52 @@ refactor surfaced and how they were fixed.
     based on the `.vert`/`.frag` source; caught before `vkCreateGraphicsPipelines`
     was ever reached.
 
+17. **`Pipeline` class completed** (`Pipeline.hpp`/`.cpp`) — the full
+    fixed-function pipeline state chain: `VkPipelineVertexInputStateCreateInfo`
+    (all zero/`nullptr` — no vertex buffer, positions are hardcoded in
+    `triangle.vert`), `VkPipelineInputAssemblyStateCreateInfo`
+    (`VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST`), `VkViewport`/`VkRect2D` scissor
+    wrapped in `VkPipelineViewportStateCreateInfo` (using the `VkExtent2D`
+    passed into the constructor), `VkPipelineRasterizationStateCreateInfo`
+    (`cullMode = VK_CULL_MODE_NONE` — no culling needed for one 2D triangle
+    yet; `frontFace = VK_FRONT_FACE_CLOCKWISE`, verified against the actual
+    winding order of `triangle.vert`'s three hardcoded vertices under
+    Vulkan's y-down NDC convention), `VkPipelineMultisampleStateCreateInfo`
+    (`VK_SAMPLE_COUNT_1_BIT`, matching `RenderPass`'s color attachment),
+    `VkPipelineColorBlendAttachmentState` + `VkPipelineColorBlendStateCreateInfo`
+    (`blendEnable = VK_FALSE` — opaque triangle, no transparency),
+    `VkPipelineLayoutCreateInfo` → `vkCreatePipelineLayout` (empty — no
+    descriptor sets or push constants needed yet), and finally
+    `VkGraphicsPipelineCreateInfo` → `vkCreateGraphicsPipelines`, which
+    (unlike every other `vkCreate*` call in this codebase) is plural and
+    batch-oriented — `createInfoCount` + an array of create-infos, since
+    Vulkan allows creating many pipeline variants in one driver call, even
+    though this project only creates one at a time so far.
+
+    **`ShaderModuleGuard` — a function-scoped RAII pattern, new shape for a
+    concept already used everywhere in this codebase.** Every RAII class so
+    far ties a destructor to a *class member's* lifetime; this is the first
+    case of a small anonymous-namespace struct (private to `Pipeline.cpp`)
+    tying a destructor to a *local variable's* lifetime instead, guaranteed
+    to run via C++ stack unwinding on both the normal-return and
+    exception-thrown exit paths. It exists because `VkShaderModule` is
+    fully transient — created, referenced while building the pipeline, then
+    discarded — so it deliberately isn't a persistent RAII class (see
+    concept 16), but still needed exception-safe cleanup once `Pipeline`'s
+    constructor gained two `throw` points (`vkCreatePipelineLayout` and
+    `vkCreateGraphicsPipelines` failing) between shader module creation and
+    the end of the constructor. Two bugs caught in review while adding it:
+    a first draft put manual `vkDestroyShaderModule` calls *after* a
+    `throw` statement (unreachable dead code — a `throw` unconditionally
+    exits the scope right there, so nothing after it in the same block ever
+    runs), and left the *original* manual destroy calls at the end of the
+    constructor in place even after the guards were added — which would
+    have double-destroyed both shader modules on the success path (the
+    manual calls, then the guards' destructors immediately after at scope
+    end), which is invalid Vulkan usage. Fixed by deleting all manual
+    `vkDestroyShaderModule` calls entirely and trusting the guards
+    exclusively.
+
 **The "count, then array" convention** has now appeared four times
 (`glfwGetRequiredInstanceExtensions`, `vkEnumeratePhysicalDevices`,
 `vkGetPhysicalDeviceQueueFamilyProperties`, and implicitly in layer/extension
@@ -466,7 +512,21 @@ a `VkPipelineShaderStageCreateInfo shaderStages[2]` array, then the
 fixed-function state structs (vertex input, input assembly,
 viewport/scissor, rasterizer, multisampling, color blending),
 `VkPipelineLayoutCreateInfo` → `vkCreatePipelineLayout`, and finally
-`VkGraphicsPipelineCreateInfo` → `vkCreateGraphicsPipelines`. `Pipeline`
-still needs to destroy both shader modules after pipeline creation, and
-still needs to be wired into `App` as a member. See
-`lesson-one/milestone-1-triangle.md` for the detailed sub-checklist.
+`VkGraphicsPipelineCreateInfo` → `vkCreateGraphicsPipelines`.
+
+**Update (later session):** Step 9 is fully complete — see concepts 16-17
+above (`Pipeline` class, `ShaderModuleGuard`). `Pipeline` is wired into
+`App` as the last-declared member; `SHADER_DIR` compile definition added to
+`CMakeLists.txt` so `App.cpp` can build the `.spv` paths at runtime.
+Confirmed: clean build, no validation errors, app launches and stays alive
+(`pgrep`-confirmed) with no visible window yet — expected on this machine's
+Wayland session, since nothing is drawn/presented until Steps 10-11.
+
+Next up: **Step 10 — framebuffers + command buffers.** A `VkFramebuffer`
+binds a specific swapchain image view to the `RenderPass`'s attachment slot
+(one framebuffer per swapchain image, since each needs its own image view
+bound); then a `VkCommandPool` + `VkCommandBuffer`(s) get created, and a
+draw call (`vkCmdBeginRenderPass`, `vkCmdBindPipeline`, `vkCmdDraw`,
+`vkCmdEndRenderPass`) gets recorded into the buffer, ready to be submitted
+once Step 11's render loop exists. See
+`lesson-one/milestone-1-triangle.md` for the detailed checklist.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LogicalDevice.hpp"
+#include "Pipeline.hpp"
 #include "RenderPass.hpp"
 #include "Surface.hpp"
 #include "Swapchain.hpp"
@@ -37,4 +38,5 @@ class App {
     SwapchainSupport          support;
     Swapchain                 swapchain;
     RenderPass                renderPass;
+    Pipeline                  pipeline;
 };

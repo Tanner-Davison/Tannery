@@ -1,5 +1,6 @@
 #include "App.hpp"
 #include "physicalDevice.hpp"
+#include <filesystem>
 #include <stdexcept>
 
 App::App(int width, int height, const char* title)
@@ -11,7 +12,12 @@ App::App(int width, int height, const char* title)
     , device(physicalDevice, indices)
     , support(pickSwapchainSupport(physicalDevice, surface.handle()))
     , swapchain(device.handle(), surface.handle(), support, window.handle(), indices)
-    , renderPass(device.handle(), swapchain.formatHandle()) {}
+    , renderPass(device.handle(), swapchain.formatHandle())
+    , pipeline(device.handle(),
+               renderPass.handle(),
+               swapchain.extentHandle(),
+               std::filesystem::path(SHADER_DIR) / "triangle.vert.spv",
+               std::filesystem::path(SHADER_DIR) / "triangle.frag.spv") {}
 
 VkPhysicalDevice App::pickPhysicalDevice(VkInstance instance) {
     VkPhysicalDevice physicalDevice = getPhysicalDevice(instance);

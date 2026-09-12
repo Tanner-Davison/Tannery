@@ -106,16 +106,22 @@ framebuffers → command buffers → sync/present.
         vertex/fragment shader paths
       - [x] both `VkPipelineShaderStageCreateInfo` structs built (vertex +
         fragment)
-      - [ ] combine into `VkPipelineShaderStageCreateInfo shaderStages[2]`
-        *(next up)*
-      - [ ] vertex input, input assembly, viewport/scissor, rasterizer,
+      - [x] combine into `VkPipelineShaderStageCreateInfo shaderStages[2]`
+      - [x] vertex input, input assembly, viewport/scissor, rasterizer,
         multisampling, color blending state structs
-      - [ ] `VkPipelineLayoutCreateInfo` → `vkCreatePipelineLayout`
-      - [ ] `VkGraphicsPipelineCreateInfo` → `vkCreateGraphicsPipelines`
-      - [ ] destroy both shader modules after pipeline creation (they're
-        only needed as input, not kept alive)
-      - [ ] wire `Pipeline` into `App` (last-declared member, same reasoning
-        as `RenderPass` — needs `device`, `renderPass.handle()`, and
-        `swapchain.extentHandle()`)
+      - [x] `VkPipelineLayoutCreateInfo` → `vkCreatePipelineLayout`
+      - [x] `VkGraphicsPipelineCreateInfo` → `vkCreateGraphicsPipelines`
+      - [x] `ShaderModuleGuard` (function-scoped RAII, see concept 17 in
+        `project-notes.md`) — exception-safe shader module cleanup on every
+        exit path, replacing manual `vkDestroyShaderModule` calls
+      - [x] wire `Pipeline` into `App` (last-declared member; `SHADER_DIR`
+        compile definition added to CMake so `App.cpp` can build the
+        `.spv` paths at runtime via `std::filesystem::path(SHADER_DIR) /
+        "triangle.vert.spv"`)
+
+**Step 9 complete.** Build succeeds with no validation errors; app launches
+and stays alive (confirmed via `pgrep`) with no visible window yet — expected
+on this machine's Wayland session per the gotcha documented above, since
+nothing is drawn/presented until Steps 10-11.
 - [ ] Step 10 — framebuffers + command buffers
 - [ ] Step 11 — render loop + sync

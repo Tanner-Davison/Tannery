@@ -530,3 +530,28 @@ draw call (`vkCmdBeginRenderPass`, `vkCmdBindPipeline`, `vkCmdDraw`,
 `vkCmdEndRenderPass`) gets recorded into the buffer, ready to be submitted
 once Step 11's render loop exists. See
 `lesson-one/milestone-1-triangle.md` for the detailed checklist.
+
+## Planned future refactor: dynamic rendering
+
+**Decision (later session):** sticking with the classic `VkRenderPass` +
+`VkFramebuffer` model through the end of Milestone 1, deliberately, even
+though `VK_KHR_dynamic_rendering` (core since Vulkan 1.3, confirmed
+available on this machine's driver — "Vulkan 1.4.x" per the top of this
+doc) would let `vkCmdBeginRendering`/`vkCmdEndRendering` skip both objects
+entirely, pointing directly at image views per draw call instead of
+pre-baked framebuffers. Reasoning: `RenderPass` is already built and
+correct, the classic model is what teaches attachment load/store semantics
+and subpass dependencies explicitly (concepts dynamic rendering doesn't
+surface the same way), and it's what vulkan-tutorial.com and the Vulkan
+Cookbook both teach as the foundation.
+
+**Plan: once the triangle is actually rendering (end of Milestone 1),
+refactor the renderer to dynamic rendering as a deliberate follow-up
+exercise** — replacing `RenderPass` + `Framebuffers` with
+`vkCmdBeginRendering`/`VkRenderingInfo`, and adding the
+`VkPhysicalDeviceDynamicRenderingFeatures` feature-enable step to
+`LogicalDevice`'s device creation (not currently done — `VkPhysicalDeviceFeatures`
+is all-zero right now, per concept 6). This keeps the learning sequence
+intact — understand the mechanism deeply first, then learn the modern
+shortcut that replaces it, rather than skipping straight to the
+abstraction.

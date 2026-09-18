@@ -33,6 +33,8 @@ RenderPass::RenderPass(VkDevice pDevice, VkSurfaceFormatKHR pSurfaceFormat)
     subpass.pColorAttachments    = &colorAttachmentRef; // where they are
 
     /* SUBPASS DEPENDANCY */
+    /*What it is: its an execution phase within a VkRenderPass that explicitly describes how a
+     * set of draw calls reads from and writes to the attachments bound to that render pass.*/
     //-------------------------------------------------------------
     VkSubpassDependency dependency{};
     // 1. Who is involved

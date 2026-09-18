@@ -24,11 +24,10 @@ class Swapchain {
     ~Swapchain();
 
     // Handles
-    VkSwapchainKHR           handle() const;
-    VkSurfaceFormatKHR       formatHandle() const;
-    VkPresentModeKHR         presentHandle() const;
-    VkExtent2D               extentHandle() const;
-    std::vector<VkImageView> imageViewsHandle() const;
+    VkSwapchainKHR     handle() const;
+    VkSurfaceFormatKHR formatHandle() const;
+    VkPresentModeKHR   presentHandle() const;
+    VkExtent2D         extentHandle() const;
 
   private:
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const SwapchainSupport& support);

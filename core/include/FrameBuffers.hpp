@@ -1,6 +1,4 @@
 #pragma once
-#include "RenderPass.hpp"
-#include "Swapchain.hpp"
 #include <vector>
 #include <vulkan/vulkan.h>
 

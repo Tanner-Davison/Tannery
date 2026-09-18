@@ -196,7 +196,3 @@ VkExtent2D Swapchain::chooseSwapExtent(GLFWwindow*                     window,
         return actualExtent;
     }
 };
-
-std::vector<VkImageView> Swapchain::imageViewsHandle() const {
-    return this->imageViews;
-};

@@ -27,7 +27,9 @@ set(SOURCES
     core/src/Swapchain.cpp
     core/src/RenderPass.cpp
     core/src/shaderModule.cpp
-    core/src/Pipeline.cpp)
+    core/src/FrameBuffers.cpp
+    core/src/Pipeline.cpp
+    core/src/CommandBuffers.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 

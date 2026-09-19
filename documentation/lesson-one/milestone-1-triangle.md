@@ -123,5 +123,11 @@ framebuffers → command buffers → sync/present.
 and stays alive (confirmed via `pgrep`) with no visible window yet — expected
 on this machine's Wayland session per the gotcha documented above, since
 nothing is drawn/presented until Steps 10-11.
-- [ ] Step 10 — framebuffers + command buffers
-- [ ] Step 11 — render loop + sync
+- [x] Step 10 — framebuffers + command buffers (`FrameBuffers` — one
+      `VkFramebuffer` per swapchain image, each bound to its own single
+      `VkImageView` via a per-index loop; `CommandBuffers` — one
+      `VkCommandPool` created once, all command buffers allocated in a
+      single batched `vkAllocateCommandBuffers` call, then a per-index loop
+      records `vkCmdBeginRenderPass`/`vkCmdBindPipeline`/`vkCmdDraw(3,1,0,0)`/
+      `vkCmdEndRenderPass` into each one. Both wired into `App`.)
+- [ ] Step 11 — render loop + sync *(current — final step of Milestone 1)*

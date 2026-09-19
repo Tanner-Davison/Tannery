@@ -337,6 +337,48 @@ refactor surfaced and how they were fixed.
     `vkDestroyShaderModule` calls entirely and trusting the guards
     exclusively.
 
+18. **`FrameBuffers` + `CommandBuffers` (Step 10) — the first "create N
+    related-but-distinct objects" classes.** Unlike every earlier wrapper
+    (exactly one handle each), both of these hold a collection, and each
+    needed its own distinct new pattern:
+    - `FrameBuffers`: one `VkFramebuffer` per swapchain image, built in a
+      per-index loop where `VkFramebufferCreateInfo` is constructed *fresh
+      inside* each iteration, with `attachmentCount = 1` and
+      `pAttachments = &imageViews[i]` — each framebuffer binds exactly one,
+      *different*, image view. An early draft built `fbInfo` once, outside
+      the loop, with `attachmentCount` set to the *entire* image-view
+      array's size — every framebuffer would have ended up bound to the
+      same first image view. A second early draft's destructor also called
+      `vkDestroyImageView` on the image views themselves — but `Swapchain`
+      already owns and destroys those; `FrameBuffers` only *reads* them, it
+      never created them, so destroying them here would have been a
+      double-destroy the moment both objects tore down. Rule reinforced: a
+      class only destroys what it created.
+    - `CommandBuffers`: one `VkCommandPool` created *once* (not once per
+      buffer — an early draft put the pool-create-info construction inside
+      the per-buffer loop, a structural misunderstanding of the
+      pool-owns-many-buffers relationship), then every `VkCommandBuffer` is
+      allocated in a **single batched** `vkAllocateCommandBuffers` call
+      (`commandBufferCount` = however many you want, filled into one output
+      array) — genuinely different from `FrameBuffers`' per-index *creation*
+      loop, since here allocation happens once and only *recording*
+      (`vkCmdBeginRenderPass`/`vkCmdBindPipeline`/`vkCmdDraw(3, 1, 0, 0)`/
+      `vkCmdEndRenderPass`) happens per-index afterward. The destructor only
+      calls `vkDestroyCommandPool` — destroying a pool automatically frees
+      every command buffer allocated from it, so no per-buffer free call is
+      needed.
+
+    **Recurring bug pattern worth naming: reaching for a `_MAX_ENUM`
+    sentinel instead of a real value.** Hit three times across these two
+    classes — `VK_FRAMEBUFFER_CREATE_FLAG_BITS_MAX_ENUM`,
+    `VK_COMMAND_BUFFER_USAGE_FLAG_BITS_MAX_ENUM`, and
+    `VK_PIPELINE_BIND_POINT_MAX_ENUM` all got used in place of `0` or a real
+    enum value. Every Vulkan enum type has a `..._MAX_ENUM` member that
+    exists purely to force the enum's underlying storage to 32 bits — never
+    a real, usable value — but it tends to surface prominently in
+    autocomplete. Worth a deliberate second look whenever autocomplete
+    offers an enum constant containing `MAX_ENUM`.
+
 **The "count, then array" convention** has now appeared four times
 (`glfwGetRequiredInstanceExtensions`, `vkEnumeratePhysicalDevices`,
 `vkGetPhysicalDeviceQueueFamilyProperties`, and implicitly in layer/extension
@@ -530,6 +572,14 @@ draw call (`vkCmdBeginRenderPass`, `vkCmdBindPipeline`, `vkCmdDraw`,
 `vkCmdEndRenderPass`) gets recorded into the buffer, ready to be submitted
 once Step 11's render loop exists. See
 `lesson-one/milestone-1-triangle.md` for the detailed checklist.
+
+**Update (later session):** Step 10 is fully complete — see concept 18
+above (`FrameBuffers`, `CommandBuffers`). Both wired into `App` as the
+last-declared members. **Only Step 11 remains for the entire milestone:**
+the render loop itself — semaphores, fences, `vkAcquireNextImageKHR`,
+submitting the right `CommandBuffers` entry to the graphics queue via
+`vkQueueSubmit`, and `vkQueuePresentKHR`. Once that's done, the triangle
+should actually render.
 
 ## Planned future refactor: dynamic rendering
 

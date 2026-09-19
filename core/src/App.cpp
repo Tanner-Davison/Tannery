@@ -13,11 +13,21 @@ App::App(int width, int height, const char* title)
     , support(pickSwapchainSupport(physicalDevice, surface.handle()))
     , swapchain(device.handle(), surface.handle(), support, window.handle(), indices)
     , renderPass(device.handle(), swapchain.formatHandle())
+    , frameBuffers(renderPass.handle(),
+                   device.handle(),
+                   swapchain.imageViewsHandle(),
+                   swapchain.extentHandle())
     , pipeline(device.handle(),
                renderPass.handle(),
                swapchain.extentHandle(),
                std::filesystem::path(SHADER_DIR) / "triangle.vert.spv",
-               std::filesystem::path(SHADER_DIR) / "triangle.frag.spv") {}
+               std::filesystem::path(SHADER_DIR) / "triangle.frag.spv")
+    , commandBuffers(device.handle(),
+                     renderPass.handle(),
+                     frameBuffers.handle(),
+                     pipeline.pipelineHandle(),
+                     swapchain.extentHandle(),
+                     indices) {}
 
 VkPhysicalDevice App::pickPhysicalDevice(VkInstance instance) {
     VkPhysicalDevice physicalDevice = getPhysicalDevice(instance);

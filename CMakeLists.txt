@@ -29,7 +29,8 @@ set(SOURCES
     core/src/shaderModule.cpp
     core/src/FrameBuffers.cpp
     core/src/Pipeline.cpp
-    core/src/CommandBuffers.cpp)
+    core/src/CommandBuffers.cpp
+    core/src/SyncObjects.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 

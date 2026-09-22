@@ -7,6 +7,7 @@
 #include "RenderPass.hpp"
 #include "Surface.hpp"
 #include "Swapchain.hpp"
+#include "SyncObjects.hpp"
 #include "VulkanInstance.hpp"
 #include "Window.hpp"
 #include "queueFamilies.hpp"
@@ -37,6 +38,7 @@ class App {
     VkPhysicalDevice          physicalDevice;
     QueueFamilyIndices        indices;
     LogicalDevice             device;
+    SyncObjects               syncObjects;
     SwapchainSupport          support;
     Swapchain                 swapchain;
     RenderPass                renderPass;

@@ -25,7 +25,8 @@ Pipeline::Pipeline(VkDevice                     pDevice,
                    VkRenderPass                 pRenderPass,
                    VkExtent2D                   pExtent,
                    const std::filesystem::path& pVertPath,
-                   const std::filesystem::path& pFragPath)
+                   const std::filesystem::path& pFragPath,
+                   VkSurfaceFormatKHR           pSurfaceFormat)
     : device(pDevice) {
     std::vector<char> vertCode   = readFile(pVertPath);
     VkShaderModule    vertModule = createShaderModule(this->device, vertCode);
@@ -126,6 +127,15 @@ Pipeline::Pipeline(VkDevice                     pDevice,
                                &this->pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("Error: could not create vkCreatePipelineLayout");
     }
+
+    VkFormat                      colorFormat = pSurfaceFormat.format;
+    VkPipelineRenderingCreateInfo pipelineRenderingInfo{};
+    pipelineRenderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    pipelineRenderingInfo.pNext = nullptr;
+    pipelineRenderingInfo.colorAttachmentCount    = 1;
+    pipelineRenderingInfo.pColorAttachmentFormats = &colorFormat;
+    pipelineRenderingInfo.depthAttachmentFormat   = VK_FORMAT_UNDEFINED;
+    pipelineRenderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;

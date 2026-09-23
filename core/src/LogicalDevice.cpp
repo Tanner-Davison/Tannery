@@ -34,9 +34,9 @@ LogicalDevice::LogicalDevice(VkPhysicalDevice          pPhysicalDevice,
     /*CHECK FOR EXTENSIONS COMPATIBILITY ON PHYSICAL DEVICE*/
     uint32_t extensionCount = 0;
     VkResult extensionRes   = vkEnumerateDeviceExtensionProperties(pPhysicalDevice,
-                                                                   nullptr,
-                                                                   &extensionCount,
-                                                                   nullptr);
+                                                                 nullptr,
+                                                                 &extensionCount,
+                                                                 nullptr);
     if (extensionRes != VK_SUCCESS) {
         throw std::runtime_error("Error: Unable to enumerate device extension properties");
     }
@@ -110,10 +110,17 @@ LogicalDevice::LogicalDevice(VkPhysicalDevice          pPhysicalDevice,
             "Required VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME not supported");
     }
 #endif
+
+    VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures{};
+    dynamicRenderingFeatures.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+    dynamicRenderingFeatures.pNext            = nullptr;
+    dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
+
     /*CREATE DEVICE INFO WITH EXTENSIONS*/
     VkDeviceCreateInfo logicalDeviceInfo{
         .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext                   = nullptr,
+        .pNext                   = &dynamicRenderingFeatures,
         .flags                   = 0,
         .queueCreateInfoCount    = static_cast<uint32_t>(queueCreateInfos.size()),
         .pQueueCreateInfos       = queueCreateInfos.data(),

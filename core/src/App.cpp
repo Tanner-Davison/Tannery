@@ -22,7 +22,8 @@ App::App(int width, int height, const char* title)
                renderPass.handle(),
                swapchain.extentHandle(),
                std::filesystem::path(SHADER_DIR) / "triangle.vert.spv",
-               std::filesystem::path(SHADER_DIR) / "triangle.frag.spv")
+               std::filesystem::path(SHADER_DIR) / "triangle.frag.spv",
+               swapchain.formatHandle())
     , commandBuffers(device.handle(),
                      renderPass.handle(),
                      frameBuffers.handle(),

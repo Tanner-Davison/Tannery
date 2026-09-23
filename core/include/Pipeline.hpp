@@ -8,7 +8,8 @@ class Pipeline {
              VkRenderPass                 pRenderPass,
              VkExtent2D                   pExtent,
              const std::filesystem::path& pVertPath,
-             const std::filesystem::path& pFragPath);
+             const std::filesystem::path& pFragPath,
+             VkSurfaceFormatKHR           pSurfaceFormat);
 
     // Copy && Move constructors
     Pipeline(const Pipeline&)            = delete;

@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
+#include <vulkan/vulkan.h>
 
 Swapchain::Swapchain(VkDevice                  pLogicalDevice,
                      VkSurfaceKHR              surface,
@@ -65,14 +66,13 @@ Swapchain::Swapchain(VkDevice                  pLogicalDevice,
         throw std::runtime_error("Error: Failed to create swapchain");
     }
 
-    uint32_t imagesCount;
-    vkGetSwapchainImagesKHR(this->deviceHandle, this->swapchain, &imagesCount, nullptr);
+    vkGetSwapchainImagesKHR(this->deviceHandle, this->swapchain, &this->imageCount, nullptr);
 
-    this->images.resize(imagesCount);
+    this->images.resize(imageCount);
 
     vkGetSwapchainImagesKHR(this->deviceHandle,
                             this->swapchain,
-                            &imagesCount,
+                            &imageCount,
                             this->images.data());
 
     VkImageViewCreateInfo createImageViewInfo{};
@@ -199,4 +199,8 @@ VkExtent2D Swapchain::chooseSwapExtent(GLFWwindow*                     window,
 
 const std::vector<VkImageView>& Swapchain::imageViewsHandle() const {
     return this->imageViews;
+};
+
+uint32_t Swapchain::imageCountHandle() const {
+    return this->imageCount;
 };

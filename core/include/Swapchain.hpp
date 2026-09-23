@@ -28,6 +28,7 @@ class Swapchain {
     VkSurfaceFormatKHR              formatHandle() const;
     VkPresentModeKHR                presentHandle() const;
     VkExtent2D                      extentHandle() const;
+    uint32_t                        imageCountHandle() const;
     const std::vector<VkImageView>& imageViewsHandle() const;
 
   private:
@@ -45,4 +46,5 @@ class Swapchain {
     VkSurfaceFormatKHR       surfaceFormat;
     VkPresentModeKHR         presentMode;
     VkExtent2D               extent;
+    uint32_t                 imageCount;
 };

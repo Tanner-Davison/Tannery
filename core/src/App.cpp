@@ -10,9 +10,9 @@ App::App(int width, int height, const char* title)
     , physicalDevice(pickPhysicalDevice(instance.handle()))
     , indices(pickQueueFamilies(physicalDevice, surface.handle()))
     , device(physicalDevice, indices)
-    , syncObjects(device.handle())
     , support(pickSwapchainSupport(physicalDevice, surface.handle()))
     , swapchain(device.handle(), surface.handle(), support, window.handle(), indices)
+    , syncObjects(device.handle(), swapchain.imageCountHandle())
     , renderPass(device.handle(), swapchain.formatHandle())
     , frameBuffers(renderPass.handle(),
                    device.handle(),
@@ -57,8 +57,56 @@ SwapchainSupport App::pickSwapchainSupport(VkPhysicalDevice physicalDevice,
     return support;
 }
 
+void App::drawFrame() const {
+    VkFence fence = syncObjects.getFence();
+    vkWaitForFences(this->device.handle(), 1, &fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(this->device.handle(), 1, &fence);
+    std::vector<VkSemaphore> renderCompleteSemaphores =
+        syncObjects.getRenderCompleteSemaphores();
+    uint32_t imageIndex;
+    vkAcquireNextImageKHR(this->device.handle(),
+                          swapchain.handle(),
+                          UINT64_MAX,
+                          syncObjects.getImageAvailableSemaphore(),
+                          VK_NULL_HANDLE,
+                          &imageIndex);
+
+    VkSemaphore          waitSemaphores[] = {syncObjects.getImageAvailableSemaphore()};
+    VkPipelineStageFlags waitStages[]     = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkSemaphore          signalSemaphore  = renderCompleteSemaphores[imageIndex];
+    std::vector<VkCommandBuffer> _commandBuffers = commandBuffers.getCmdBuffers();
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount   = 1;
+    submitInfo.pWaitSemaphores      = waitSemaphores;
+    submitInfo.pWaitDstStageMask    = waitStages;
+    submitInfo.commandBufferCount   = 1;
+    submitInfo.pCommandBuffers      = &_commandBuffers[imageIndex];
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores    = &signalSemaphore;
+
+    vkQueueSubmit(device.GraphicsQueueHandle(), 1, &submitInfo, fence);
+
+    VkSwapchainKHR   swapchains[] = {this->swapchain.handle()};
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores    = &signalSemaphore;
+    presentInfo.swapchainCount     = 1;
+    presentInfo.pSwapchains        = swapchains;
+    presentInfo.pImageIndices      = &imageIndex;
+    presentInfo.pResults           = nullptr;
+
+    vkQueuePresentKHR(device.PresentQueueHandle(), &presentInfo);
+};
+
 void App::run() {
     while (!glfwWindowShouldClose(window.handle())) {
         glfwPollEvents();
+
+        drawFrame();
     }
+    // Ensures my classes destructors all run before we exit
+    vkDeviceWaitIdle(this->device.handle());
 }

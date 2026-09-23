@@ -94,7 +94,7 @@ framebuffers → command buffers → sync/present.
       into `VkRenderPassCreateInfo` → `vkCreateRenderPass`. Wired into `App`
       as the last-declared member, since it depends on both `device` and
       `swapchain.formatHandle()`)
-- [ ] Step 9 — graphics pipeline *(current — in progress)*
+- [x] Step 9 — graphics pipeline
       - [x] shader-compile tooling (`data/shaders/triangle.vert`/`.frag`,
         `glslangValidator` wired into CMake via `find_program`/
         `add_custom_command`/`add_custom_target`)
@@ -130,4 +130,26 @@ nothing is drawn/presented until Steps 10-11.
       single batched `vkAllocateCommandBuffers` call, then a per-index loop
       records `vkCmdBeginRenderPass`/`vkCmdBindPipeline`/`vkCmdDraw(3,1,0,0)`/
       `vkCmdEndRenderPass` into each one. Both wired into `App`.)
-- [ ] Step 11 — render loop + sync *(current — final step of Milestone 1)*
+- [x] Step 11 — render loop + sync (new `SyncObjects` class: one
+      `imageAvailableSemaphore`, one signaled-at-creation `VkFence`, and a
+      `std::vector<VkSemaphore>` of render-complete semaphores — one per
+      swapchain image rather than a single shared instance, indexed by the
+      acquired `imageIndex`. Wired into `App` after `swapchain`, since it
+      depends on `swapchain.imageCountHandle()`. `App::drawFrame()` runs
+      `vkWaitForFences` → `vkResetFences` → `vkAcquireNextImageKHR` →
+      `vkQueueSubmit` → `vkQueuePresentKHR` each frame; `App::run()` calls
+      it every iteration after `glfwPollEvents()`, and adds a single
+      `vkDeviceWaitIdle` after the loop exits so shutdown doesn't destroy
+      Vulkan objects the GPU is still using. See "Update (later session):
+      Step 11 is complete" in `project-notes.md` for the two validation-layer
+      bugs hit and fixed along the way — binary semaphore reuse across
+      swapchain images, and a parameter-shadowing bug in the sync-objects
+      exception-safety guard.)
+
+## Milestone 1: complete
+
+All 11 steps done — a hardcoded triangle renders on screen via the full
+Vulkan pipeline (instance → physical device → logical device →
+surface/swapchain → render pass → graphics pipeline → framebuffers →
+command buffers → sync/present), confirmed with no validation layer errors
+on either the steady-state render loop or app shutdown.

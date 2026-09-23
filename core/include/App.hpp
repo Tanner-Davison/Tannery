@@ -32,19 +32,21 @@ class App {
                                                 VkSurfaceKHR     surface);
     static SwapchainSupport   pickSwapchainSupport(VkPhysicalDevice physicalDevice,
                                                    VkSurfaceKHR     surface);
-    Window                    window;
-    VulkanInstance            instance;
-    Surface                   surface;
-    VkPhysicalDevice          physicalDevice;
-    QueueFamilyIndices        indices;
-    LogicalDevice             device;
-    SyncObjects               syncObjects;
-    SwapchainSupport          support;
-    Swapchain                 swapchain;
-    RenderPass                renderPass;
-    FrameBuffers              frameBuffers;
-    Pipeline                  pipeline;
-    CommandBuffers            commandBuffers;
+    void                      drawFrame() const;
+
+    Window             window;
+    VulkanInstance     instance;
+    Surface            surface;
+    VkPhysicalDevice   physicalDevice;
+    QueueFamilyIndices indices;
+    LogicalDevice      device;
+    SwapchainSupport   support;
+    Swapchain          swapchain;
+    SyncObjects        syncObjects;
+    RenderPass         renderPass;
+    FrameBuffers       frameBuffers;
+    Pipeline           pipeline;
+    CommandBuffers     commandBuffers;
 };
 
 /*What does a VkFramebuffer actually do? */

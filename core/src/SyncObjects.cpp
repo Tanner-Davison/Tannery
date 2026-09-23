@@ -18,6 +18,14 @@ struct SemaphoreModuleGuard {
         }
     }
 
+    void push_back_vec(std::vector<VkSemaphore> pSemaphores) {
+        for (const auto& semaphore : pSemaphores) {
+            if (semaphore != VK_NULL_HANDLE) {
+                semaphores.push_back(semaphore);
+            }
+        }
+    }
+
     // Release Ownership
     void release() {
         semaphores.clear();
@@ -36,7 +44,8 @@ struct SemaphoreModuleGuard {
 };
 } // namespace
 
-SyncObjects::SyncObjects(VkDevice pDevice) : device(pDevice) {
+SyncObjects::SyncObjects(VkDevice pDevice, uint32_t pImageCount) : device(pDevice) {
+    renderCompleteSemaphores.resize(pImageCount);
     // Semaphore info struct
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -51,12 +60,16 @@ SyncObjects::SyncObjects(VkDevice pDevice) : device(pDevice) {
     }
     semGuard.push_back(imageAvailableSemaphore);
 
-    VkResult renderFinishedRes(
-        vkCreateSemaphore(this->device, &semaphoreInfo, nullptr, &renderCompleteSemaphore));
-    if (renderFinishedRes != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create the Render Finish Semaphore");
-    }
-    semGuard.push_back(renderCompleteSemaphore);
+    for (size_t i = 0; i < pImageCount; i++) {
+        VkResult renderFinishedRes(vkCreateSemaphore(this->device,
+                                                     &semaphoreInfo,
+                                                     nullptr,
+                                                     &renderCompleteSemaphores[i]));
+        if (renderFinishedRes != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create the Render Finish Semaphore(s)");
+        }
+    };
+    semGuard.push_back_vec(renderCompleteSemaphores);
 
     // CREATE FENCE
     VkFenceCreateInfo fenceInfo{};
@@ -75,8 +88,8 @@ VkSemaphore SyncObjects::getImageAvailableSemaphore() const {
     return this->imageAvailableSemaphore;
 };
 
-VkSemaphore SyncObjects::getRenderCompleteSemaphore() const {
-    return this->renderCompleteSemaphore;
+std::vector<VkSemaphore> SyncObjects::getRenderCompleteSemaphores() const {
+    return this->renderCompleteSemaphores;
 };
 
 VkFence SyncObjects::getFence() const {
@@ -85,6 +98,8 @@ VkFence SyncObjects::getFence() const {
 
 SyncObjects::~SyncObjects() {
     vkDestroySemaphore(this->device, imageAvailableSemaphore, nullptr);
-    vkDestroySemaphore(this->device, renderCompleteSemaphore, nullptr);
+    for (auto& renderFinishedSemaphore : renderCompleteSemaphores) {
+        vkDestroySemaphore(this->device, renderFinishedSemaphore, nullptr);
+    }
     vkDestroyFence(this->device, this->fence, nullptr);
 }

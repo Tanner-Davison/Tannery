@@ -581,6 +581,74 @@ submitting the right `CommandBuffers` entry to the graphics queue via
 `vkQueueSubmit`, and `vkQueuePresentKHR`. Once that's done, the triangle
 should actually render.
 
+**Update (later session): Step 11 is complete — Milestone 1 (hardcoded
+triangle) is fully done.** The triangle renders on screen. New class:
+`SyncObjects`, holding one `imageAvailableSemaphore`, one `VkFence`
+(created signaled, so the first frame's wait doesn't block forever), and a
+`std::vector<VkSemaphore>` of render-complete semaphores — **one per
+swapchain image**, not a single shared instance (see the semaphore-reuse
+bug below for why). Wired into `App` after `swapchain` in both the member
+list and the constructor initializer list, since it now depends on
+`swapchain.imageCountHandle()`. `App::drawFrame()` runs the per-frame
+sequence: `vkWaitForFences` → `vkResetFences` → `vkAcquireNextImageKHR` →
+`vkQueueSubmit` (waiting on `imageAvailableSemaphore` at the
+`VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT` stage, signaling that
+frame's per-image render-complete semaphore and the fence) →
+`vkQueuePresentKHR` (waiting on the same render-complete semaphore).
+`App::run()`'s loop calls `drawFrame()` each iteration after
+`glfwPollEvents()`.
+
+Two validation-layer bugs were hit and fixed along the way, both worth
+remembering:
+
+- **Binary semaphore reuse across swapchain images.** The first working
+  version used a single shared `renderCompleteSemaphore` reused every
+  frame regardless of which image index was acquired. Validation flagged
+  `VUID-vkQueueSubmit-pSignalSemaphores-00067`: a binary semaphore must be
+  unsignaled before it's signaled again, and the CPU has no way to prove
+  the presentation engine (an opaque consumer outside the app's own queue)
+  has actually finished waiting on it before the next frame re-signals the
+  same object. `imageAvailableSemaphore` never triggered this, because it's
+  signaled by the presentation engine and waited-on by the app's own
+  `vkQueueSubmit` — the app's own fence *can* prove that wait completed.
+  The render-complete semaphore is the reverse (signaled by the app,
+  waited-on by the opaque presentation engine), so it needed one instance
+  per swapchain image instead, indexed by the acquired `imageIndex`
+  (per https://docs.vulkan.org/guide/latest/swapchain_semaphore_reuse.html,
+  linked directly in the validation output).
+- **Parameter shadowing defeated the sync-objects exception-safety guard.**
+  While reworking `SyncObjects`'s constructor to create N render-complete
+  semaphores in a loop, a new `SemaphoreModuleGuard::push_back_vec(std::vector<VkSemaphore> semaphores)`
+  helper took a parameter also named `semaphores`, shadowing the guard's
+  own `semaphores` member. Every reference inside the function body meant
+  the parameter, not the member — so the guard never actually tracked the
+  render-complete semaphores (a real leak risk if fence creation had
+  failed), and the loop was also technically undefined behavior: iterating
+  the parameter vector with a range-based `for` while simultaneously
+  `push_back`-ing into that same vector. Fixed by renaming the parameter to
+  `pSemaphores`, consistent with this codebase's existing `p`-prefix
+  convention for constructor parameters that would otherwise collide with
+  a member of the same name.
+- **Shutdown-time destruction without a final GPU sync point.** Once the
+  triangle was rendering, closing the window immediately produced
+  validation errors on `vkDestroyCommandPool`/`vkDestroySemaphore`/
+  `vkDestroyFence` — "currently in use by VkQueue," since `App`'s member
+  destructors ran the instant `run()` returned, with no guarantee the GPU
+  had finished the last submitted frame yet. Fixed with a single
+  `vkDeviceWaitIdle(device.handle())` call at the end of `App::run()`,
+  after the loop exits but before the function returns (and before any
+  member destructors start running). Worth being precise about what this
+  call does and doesn't do: it doesn't affect destructor *timing* — those
+  run automatically regardless — it blocks the CPU until the GPU has
+  finished all queued work, so that by the time the destructors *do* run,
+  the GPU is no longer referencing the objects they're about to destroy.
+  This is a one-time call at teardown, not a per-frame one — using
+  `vkDeviceWaitIdle` inside the render loop itself (as a substitute for the
+  existing fence-based `vkWaitForFences`) would be the anti-pattern to
+  avoid, since it stalls every queue on the device and kills CPU/GPU
+  overlap; at shutdown, with no more frames coming, that cost doesn't
+  apply.
+
 ## Planned future refactor: dynamic rendering
 
 **Decision (later session):** sticking with the classic `VkRenderPass` +

@@ -1,9 +1,12 @@
 # Tannery — Architecture Brain Map
 
-A visual snapshot of everything built so far, current as of Milestone 1 / Step 7
-(swapchain, in progress). Two views: a **structural diagram** (module
-relationships, in the spirit of a classic GoF UML class diagram) and a
-**build-order flow diagram** (the actual sequence `main.cpp` runs through).
+A visual snapshot of everything built so far, current as of the
+triangle-render milestone: dynamic rendering (Vulkan 1.3, no
+`VkRenderPass`/`VkFramebuffer`), sync objects wired into the render loop, and
+construction/teardown driven by RAII class lifetimes rather than manual step
+codes. Two views: a **structural diagram** (module relationships, in the
+spirit of a classic GoF UML class diagram) and a **build-order flow diagram**
+(the actual sequence `App`'s constructor and `run()` execute).
 
 This file is a living snapshot, not auto-generated — re-sync it by hand whenever
 a new module/file pair is added.
@@ -130,53 +133,68 @@ GPU-plus-window-system pairing, not either one alone.
 
 ---
 
-## 2. Build-order flow (what `main.cpp` actually runs)
+## 2. Build-order flow (what `App` actually runs)
 
 The structural diagram shows *relationships*; this shows *execution order* —
-the literal top-to-bottom sequence in `main.cpp`, including where each early-out
-failure branch goes.
+the literal top-to-bottom sequence `App`'s member-initializer list runs
+through in `App::App` (`core/src/App.cpp`), followed by the `run()` loop.
+`main.cpp` itself is now just `App app(...); app.run();` inside a
+`try`/`catch`.
+
+There are no more numbered `return N` failure codes or a manual `cleanup()`
+call — every member is an RAII class (or a `static` helper that throws), so a
+failure anywhere unwinds the stack, destructs whatever was already built (in
+reverse order, for free, via normal C++ semantics), and lands in the single
+`catch` block in `main.cpp`.
 
 ```mermaid
 flowchart TD
-    A[createWindow] -->|ok| B[createInstance]
-    A -->|fail| X1[return 1]
+    A["Window\n(createWindow)"] --> B["VulkanInstance\n(createInstance + debug messenger via pNext)"]
+    B --> C["Surface\n(getWindowSurface)"]
+    C --> D["pickPhysicalDevice\n(getPhysicalDevice)"]
+    D --> E["pickQueueFamilies\n(findQueueFamilies)"]
+    E --> F["LogicalDevice\n(createLogicalDevice)"]
+    F --> G["pickSwapchainSupport\n(getSwapchainSupportDetails)"]
+    G --> H["Swapchain\n(create swapchain + image views)"]
+    H --> I["SyncObjects\n(image-available/render-complete semaphores + fence)"]
+    I --> J["Pipeline\n(load .spv shaders, dynamic-rendering pipeline)"]
+    J --> K["CommandBuffers\n(allocate + record: barrier -> vkCmdBeginRendering -> draw -> vkCmdEndRendering -> barrier)"]
 
-    B -->|ok| C[CreateDebugUtilsMessengerEXT]
-    B -->|fail| X2["cleanup + return 2"]
+    K --> L["App::run() render loop\n(glfwPollEvents)"]
+    L --> M["drawFrame()\nwait fence -> acquire image -> submit -> present"]
+    M -->|window open| L
+    M -->|window closed| N[vkDeviceWaitIdle]
+    N --> O["~App: RAII teardown\n(destructors fire in reverse declaration order)"]
 
-    C -->|ok| D[getPhysicalDevice]
-    C -->|fail| X3["cleanup + return 3"]
+    A -.->|throws| X["std::runtime_error\ncaught once in main()"]
+    B -.->|throws| X
+    C -.->|throws| X
+    D -.->|throws| X
+    E -.->|throws| X
+    F -.->|throws| X
+    G -.->|throws| X
+    H -.->|throws| X
+    I -.->|throws| X
+    J -.->|throws| X
+    K -.->|throws| X
+    X --> P["stack unwinds: already-built members\ndestruct in reverse order"]
+    P --> Q["print error, return 1"]
 
-    D -->|ok| E[getWindowSurface]
-    D -->|fail| X4["cleanup + return 4"]
-
-    E -->|ok| F[findQueueFamilies]
-    E -->|fail| X5["cleanup + return 5"]
-
-    F -->|isComplete| G[createLogicalDevice]
-    F -->|incomplete| X6["cleanup + return 6"]
-
-    G -->|ok| H["getSwapchainSupportDetails (in progress)"]
-    G -->|fail| X7["cleanup + return 7"]
-
-    H --> I["render loop (glfwPollEvents)"]
-    I --> J["cleanup (success path)"]
-
-    style X1 fill:#5a1f1f,color:#fff
-    style X2 fill:#5a1f1f,color:#fff
-    style X3 fill:#5a1f1f,color:#fff
-    style X4 fill:#5a1f1f,color:#fff
-    style X5 fill:#5a1f1f,color:#fff
-    style X6 fill:#5a1f1f,color:#fff
-    style X7 fill:#5a1f1f,color:#fff
-    style H fill:#4a3b1f,color:#fff
+    style X fill:#5a1f1f,color:#fff
+    style P fill:#5a1f1f,color:#fff
+    style Q fill:#5a1f1f,color:#fff
 ```
 
-**Reading it:** every step is a strict prerequisite for the next — this is a
-linear pipeline, not a tree, which is why `cleanup()` always needs to know
-exactly how far the pipeline got (hence every early-return branch calling it
-with `VK_NULL_HANDLE` placeholders for anything not yet created). The
-teardown order in `cleanup.hpp` runs this exact chain in reverse.
+**Reading it:** every step is still a strict prerequisite for the next — this
+is a linear pipeline, not a tree — but the failure handling inverted: instead
+of each step explicitly calling `cleanup()` with `VK_NULL_HANDLE` placeholders
+for anything not yet created, each module's constructor is responsible only
+for its own resource, and the compiler-generated stack unwinding guarantees
+reverse-order teardown of everything that *did* get constructed. `App`'s
+member declaration order in `App.hpp` (window, instance, surface,
+physicalDevice, indices, device, support, swapchain, syncObjects, pipeline,
+commandBuffers) *is* the build order, and `~App`'s implicit destructor runs
+it in reverse — the same guarantee `cleanup.hpp` used to provide by hand.
 
 ---
 
@@ -188,5 +206,5 @@ teardown order in `cleanup.hpp` runs this exact chain in reverse.
 | `-->` | association — "needs a handle owned by this" |
 | `<<module>>` | a `.hpp`/`.cpp` file pair, one Vulkan concern each |
 | `<<struct>>` | a plain data-holding type, no owned Vulkan lifetime logic |
-| red flowchart node | an early-return failure path (always calls `cleanup()` first) |
-| amber flowchart node | current in-progress step (Step 7: swapchain) |
+| red flowchart node | the shared exception path — any construction step can `throw std::runtime_error`, caught once in `main()`, unwinding already-built RAII members in reverse |
+| dashed arrow (`-.->`) | "may throw into" — every build step can fail into the single exception path |

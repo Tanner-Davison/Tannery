@@ -4,8 +4,8 @@ A visual snapshot of everything built so far, current as of the
 triangle-render milestone: dynamic rendering (Vulkan 1.3, no
 `VkRenderPass`/`VkFramebuffer`), sync objects wired into the render loop, and
 construction/teardown driven by RAII class lifetimes rather than manual step
-codes. Two views: a **structural diagram** (module relationships, in the
-spirit of a classic GoF UML class diagram) and a **build-order flow diagram**
+codes. Two views: a **structural diagram** (module relationships, grouped into
+layers) and a **build-order flow diagram**
 (the actual sequence `App`'s constructor and `run()` execute).
 
 This file is a living snapshot, not auto-generated — re-sync it by hand whenever
@@ -15,121 +15,121 @@ a new module/file pair is added.
 
 ## 1. Structural diagram (module relationships)
 
-Each Vulkan "concern" is modeled as a class: its exposed free function(s) as
-methods, and any struct it owns as attributes. `..>` is a dependency ("uses to
-produce"), `-->` is an association ("needs a handle from"). This project is raw
-procedural C-API code, not real OOP — treat the boxes as **file-pair modules**,
-not literal C++ classes.
+Modules are grouped into four layers, one row per layer, read top to bottom.
+Each arrow goes **from the provider to the consumer** and is labeled with the
+handle or data that moves along it. It is drawn only where a constructor or
+function actually takes that value as a parameter. Node shape and color show
+what *kind* of module it is (see the key under the diagram).
 
 ```mermaid
-classDiagram
-    class main_cpp {
-        <<orchestrator>>
-        +main() int
-    }
+flowchart TB
+    main["main.cpp<br/><i>App app(...); app.run();</i>"]
+    App["<b>App</b><br/>owns every RAII member<br/>builds them in declaration order"]
+    main --> App
+    App ~~~ Debug & Window
 
-    class WindowHandling {
-        <<module>>
-        +createWindow(w, h, title) GLFWwindow*
-    }
+    subgraph L1["① Platform: window + Vulkan entry point"]
+        Window["<b>Window</b><br/>GLFWwindow*"]
+        Instance["<b>VulkanInstance</b><br/>VkInstance + debug messenger"]
+        Debug(["debugCallbackVulkan.hpp<br/>header-only"])
+        Surface["<b>Surface</b><br/>VkSurfaceKHR"]
+    end
 
-    class VulkanInstance {
-        <<module>>
-        +createInstance(appName) VkInstance
-    }
+    subgraph L2["② GPU selection: queries, nothing to destroy"]
+        PhysDev(["physicalDevice<br/>getPhysicalDevice()"])
+        QF[/"QueueFamilyIndices<br/>graphics + present index"/]
+        SS[/"SwapchainSupport<br/>capabilities · formats · present modes"/]
+    end
 
-    class DebugCallbackVulkan {
-        <<module, header-only>>
-        +populateDebugMessengerCreateInfo(info)
-        +CreateDebugUtilsMessengerEXT(...) VkResult
-        +DestroyDebugUtilsMessengerEXT(...)
-        -debugCallback(...) VkBool32
-    }
+    subgraph L3["③ Device + presentation"]
+        Device["<b>LogicalDevice</b><br/>VkDevice · graphics queue · present queue"]
+        Swapchain["<b>Swapchain</b><br/>VkSwapchainKHR · images · image views"]
+    end
 
-    class PhysicalDevice {
-        <<module>>
-        +getPhysicalDevice(instance) VkPhysicalDevice
-        +printPhysicalDevices(instance)
-    }
+    subgraph L4["④ Rendering (dynamic rendering, Vulkan 1.3): every node here also takes VkDevice"]
+        Sync["<b>SyncObjects</b><br/>imageAvailable · renderComplete[] · fence"]
+        Shader(["shaderModule<br/>readFile() · createShaderModule()"])
+        Pipeline["<b>Pipeline</b><br/>VkPipeline + layout"]
+        Cmd["<b>CommandBuffers</b><br/>VkCommandPool + one buffer per image"]
+    end
 
-    class Surface {
-        <<module>>
-        +getWindowSurface(instance, window) VkSurfaceKHR
-    }
+    %% ① Platform
+    Debug -.->|messenger create-info via pNext| Instance
+    Window -->|GLFWwindow*| Surface
+    Instance -->|VkInstance| Surface
 
-    class QueueFamilyIndices {
-        <<struct>>
-        +optional~uint32_t~ graphicsFamilyIndex
-        +optional~uint32_t~ presentFamilyIndex
-        +isComplete() bool
-    }
+    %% ② Selection
+    Instance -->|VkInstance| PhysDev
+    PhysDev -->|VkPhysicalDevice| QF
+    Surface -->|VkSurfaceKHR| QF
+    PhysDev -->|VkPhysicalDevice| SS
+    Surface -->|VkSurfaceKHR| SS
 
-    class QueueFamilies {
-        <<module>>
-        +findQueueFamilies(physicalDevice, surface) QueueFamilyIndices
-    }
+    %% ③ Device + presentation
+    PhysDev -->|VkPhysicalDevice| Device
+    QF -->|indices| Device
+    Device -->|VkDevice| Swapchain
+    SS -->|support| Swapchain
+    Surface -->|VkSurfaceKHR| Swapchain
+    QF -->|indices| Swapchain
+    Window -->|framebuffer size| Swapchain
 
-    class LogicalDeviceInfo {
-        <<struct>>
-        +VkDevice logicalDevice
-        +VkQueue graphicsQueue
-        +VkQueue presentQueue
-    }
+    %% ④ Rendering
+    Swapchain -->|imageCount| Sync
+    Swapchain -->|extent + format| Pipeline
+    Shader -.->|temporary VkShaderModules| Pipeline
+    Swapchain -->|images · views · extent| Cmd
+    Pipeline -->|VkPipeline| Cmd
+    QF -->|graphics family| Cmd
 
-    class LogicalDevice {
-        <<module>>
-        +createLogicalDevice(physicalDevice, familyIndices) LogicalDeviceInfo
-    }
-
-    class SwapchainSupportDetails {
-        <<struct, in progress>>
-        +VkSurfaceCapabilitiesKHR capabilities
-        +vector~VkSurfaceFormatKHR~ formats
-        +vector~VkPresentModeKHR~ presentModes
-        +isComplete() bool
-    }
-
-    class SwapchainSupport {
-        <<module, in progress>>
-        +getSwapchainSupportDetails(physicalDevice, surface) SwapchainSupportDetails
-    }
-
-    class Cleanup {
-        <<module>>
-        +cleanup(window, instance, messenger, device, surface)
-    }
-
-    main_cpp ..> WindowHandling : creates window
-    main_cpp ..> VulkanInstance : creates instance
-    main_cpp ..> DebugCallbackVulkan : creates messenger
-    main_cpp ..> PhysicalDevice : selects GPU
-    main_cpp ..> Surface : creates surface
-    main_cpp ..> QueueFamilies : queries indices
-    main_cpp ..> LogicalDevice : creates device
-    main_cpp ..> SwapchainSupport : queries support
-    main_cpp ..> Cleanup : tears down
-
-    VulkanInstance ..> DebugCallbackVulkan : chains messenger info via pNext
-    PhysicalDevice --> VulkanInstance : requires VkInstance
-    Surface --> VulkanInstance : requires VkInstance
-    Surface --> WindowHandling : requires GLFWwindow*
-    QueueFamilies --> PhysicalDevice : requires VkPhysicalDevice
-    QueueFamilies --> Surface : requires VkSurfaceKHR
-    QueueFamilies ..> QueueFamilyIndices : produces
-    LogicalDevice --> PhysicalDevice : requires VkPhysicalDevice
-    LogicalDevice --> QueueFamilyIndices : requires
-    LogicalDevice ..> LogicalDeviceInfo : produces
-    SwapchainSupport --> PhysicalDevice : requires VkPhysicalDevice
-    SwapchainSupport --> Surface : requires VkSurfaceKHR
-    SwapchainSupport ..> SwapchainSupportDetails : produces
+    classDef raii fill:#1f4e79,stroke:#9cc3e6,color:#fff
+    classDef query fill:#4d3a73,stroke:#c5b3e6,color:#fff
+    classDef data fill:#2e5e3a,stroke:#a9d6b3,color:#fff
+    classDef entry fill:#444,stroke:#bbb,color:#fff
+    class Window,Instance,Surface,Device,Swapchain,Sync,Pipeline,Cmd raii
+    class Debug,PhysDev,Shader query
+    class QF,SS data
+    class main,App entry
 ```
 
-**Reading it:** everything ultimately traces back to `VulkanInstance` — no other
-module can exist without a `VkInstance` first. `PhysicalDevice` and `Surface`
-are the two "hubs" everything else after them depends on: both `QueueFamilies`
-and `SwapchainSupport` need *both* a `VkPhysicalDevice` and a `VkSurfaceKHR`
-together, since queue/swapchain support is a property of that specific
-GPU-plus-window-system pairing, not either one alone.
+**Key**
+
+| Shape / color | Kind | Examples |
+|---|---|---|
+| blue rectangle | **RAII class**: owns a Vulkan/GLFW handle, destroys it in `~T()`, copy and move are deleted | `Window`, `LogicalDevice`, `Pipeline` |
+| purple pill | **free functions / helpers**: no owned lifetime | `getPhysicalDevice`, `createShaderModule` |
+| green parallelogram | **plain data struct** returned by a query and stored by value in `App` | `QueueFamilyIndices`, `SwapchainSupport` |
+| `-->` solid arrow | "is passed this as a constructor/function argument" | |
+| `-.->` dashed arrow | helper used internally, nothing is stored | |
+
+**Who owns what** (the same order as `App`'s member declarations, which is
+also the build order; teardown runs bottom to top):
+
+| # | `App` member | Type | Owns / destroys | Built from |
+|---|---|---|---|---|
+| 1 | `window` | `Window` | `GLFWwindow*` (+ `glfwTerminate`) | width, height, title |
+| 2 | `instance` | `VulkanInstance` | `VkInstance`, `VkDebugUtilsMessengerEXT` | title |
+| 3 | `surface` | `Surface` | `VkSurfaceKHR` | instance, window |
+| 4 | `physicalDevice` | `VkPhysicalDevice` | nothing (the GPU is not destroyed) | instance |
+| 5 | `indices` | `QueueFamilyIndices` | nothing (value) | physicalDevice, surface |
+| 6 | `device` | `LogicalDevice` | `VkDevice` (queues come with it) | physicalDevice, indices |
+| 7 | `support` | `SwapchainSupport` | nothing (value) | physicalDevice, surface |
+| 8 | `swapchain` | `Swapchain` | `VkSwapchainKHR`, `VkImageView`s | device, surface, support, window, indices |
+| 9 | `syncObjects` | `SyncObjects` | semaphores + fence | device, swapchain image count |
+| 10 | `pipeline` | `Pipeline` | `VkPipeline`, `VkPipelineLayout` | device, extent, `.spv` paths, format |
+| 11 | `commandBuffers` | `CommandBuffers` | `VkCommandPool` (its buffers are freed with it) | device, images, views, pipeline, extent, indices |
+
+**Reading it:** everything traces back to `VulkanInstance` in layer ①. No
+other module can exist without a `VkInstance`. Two hubs feed everything
+below them. `Surface` and the selected `VkPhysicalDevice` together decide
+queue families and swapchain support, because those are properties of that
+specific GPU-plus-window pairing and not of either one alone. `LogicalDevice`
+then feeds a `VkDevice` to every object in layer ④ (left off the diagram
+as arrows to keep it readable), and `Swapchain` supplies the
+per-image data (extent, format, images, count). There is no `VkRenderPass` or
+`VkFramebuffer` anywhere. `CommandBuffers` records
+`vkCmdBeginRendering` directly against the swapchain image views, and that is
+why it takes `images` + `imageViews` rather than framebuffers.
 
 ---
 
@@ -202,9 +202,6 @@ it in reverse — the same guarantee `cleanup.hpp` used to provide by hand.
 
 | Symbol | Meaning |
 |---|---|
-| `..>` | dependency — "uses this to produce something" |
-| `-->` | association — "needs a handle owned by this" |
-| `<<module>>` | a `.hpp`/`.cpp` file pair, one Vulkan concern each |
-| `<<struct>>` | a plain data-holding type, no owned Vulkan lifetime logic |
+| blue / purple / green nodes | RAII class / free-function helper / plain data struct (full key under section 1) |
 | red flowchart node | the shared exception path — any construction step can `throw std::runtime_error`, caught once in `main()`, unwinding already-built RAII members in reverse |
 | dashed arrow (`-.->`) | "may throw into" — every build step can fail into the single exception path |

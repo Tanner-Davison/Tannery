@@ -201,6 +201,10 @@ const std::vector<VkImageView>& Swapchain::imageViewsHandle() const {
     return this->imageViews;
 };
 
+const std::vector<VkImage>& Swapchain::imagesHandle() const {
+    return this->images;
+};
+
 uint32_t Swapchain::imageCountHandle() const {
     return this->imageCount;
 };

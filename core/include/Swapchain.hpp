@@ -30,6 +30,7 @@ class Swapchain {
     VkExtent2D                      extentHandle() const;
     uint32_t                        imageCountHandle() const;
     const std::vector<VkImageView>& imageViewsHandle() const;
+    const std::vector<VkImage>&     imagesHandle() const;
 
   private:
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const SwapchainSupport& support);

@@ -22,11 +22,10 @@ struct ShaderModuleGuard {
 } // namespace
 
 Pipeline::Pipeline(VkDevice                     pDevice,
-                   VkRenderPass                 pRenderPass,
                    VkExtent2D                   pExtent,
                    const std::filesystem::path& pVertPath,
                    const std::filesystem::path& pFragPath,
-                   VkSurfaceFormatKHR           pSurfaceFormat)
+                   VkFormat                     pSurfaceFormat)
     : device(pDevice) {
     std::vector<char> vertCode   = readFile(pVertPath);
     VkShaderModule    vertModule = createShaderModule(this->device, vertCode);
@@ -128,7 +127,7 @@ Pipeline::Pipeline(VkDevice                     pDevice,
         throw std::runtime_error("Error: could not create vkCreatePipelineLayout");
     }
 
-    VkFormat                      colorFormat = pSurfaceFormat.format;
+    VkFormat                      colorFormat = pSurfaceFormat;
     VkPipelineRenderingCreateInfo pipelineRenderingInfo{};
     pipelineRenderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     pipelineRenderingInfo.pNext = nullptr;
@@ -139,6 +138,7 @@ Pipeline::Pipeline(VkDevice                     pDevice,
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.pNext               = &pipelineRenderingInfo;
     pipelineInfo.stageCount          = 2;
     pipelineInfo.pStages             = shaderStages;
     pipelineInfo.pVertexInputState   = &vertexInputInfo;
@@ -150,8 +150,8 @@ Pipeline::Pipeline(VkDevice                     pDevice,
     pipelineInfo.pDepthStencilState  = nullptr;
     pipelineInfo.pDynamicState       = nullptr;
     pipelineInfo.layout              = this->pipelineLayout;
-    pipelineInfo.renderPass          = pRenderPass;
-    pipelineInfo.subpass             = 0; // hardcoded since we only have 1 subpass
+    pipelineInfo.renderPass          = nullptr;
+    pipelineInfo.subpass             = 0;
 
     if (vkCreateGraphicsPipelines(this->device,
                                   VK_NULL_HANDLE,

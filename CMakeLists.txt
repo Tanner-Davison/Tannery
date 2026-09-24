@@ -25,9 +25,7 @@ set(SOURCES
     core/src/Surface.cpp
     core/src/swapchainSupport.cpp
     core/src/Swapchain.cpp
-    core/src/RenderPass.cpp
     core/src/shaderModule.cpp
-    core/src/FrameBuffers.cpp
     core/src/Pipeline.cpp
     core/src/CommandBuffers.cpp
     core/src/SyncObjects.cpp)

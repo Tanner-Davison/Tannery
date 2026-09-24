@@ -5,11 +5,10 @@
 class Pipeline {
   public:
     Pipeline(VkDevice                     pDevice,
-             VkRenderPass                 pRenderPass,
              VkExtent2D                   pExtent,
              const std::filesystem::path& pVertPath,
              const std::filesystem::path& pFragPath,
-             VkSurfaceFormatKHR           pSurfaceFormat);
+             VkFormat                     pSurfaceFormat);
 
     // Copy && Move constructors
     Pipeline(const Pipeline&)            = delete;

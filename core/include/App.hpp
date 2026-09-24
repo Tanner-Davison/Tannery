@@ -1,10 +1,8 @@
 #pragma once
 
 #include "CommandBuffers.hpp"
-#include "FrameBuffers.hpp"
 #include "LogicalDevice.hpp"
 #include "Pipeline.hpp"
-#include "RenderPass.hpp"
 #include "Surface.hpp"
 #include "Swapchain.hpp"
 #include "SyncObjects.hpp"
@@ -43,8 +41,6 @@ class App {
     SwapchainSupport   support;
     Swapchain          swapchain;
     SyncObjects        syncObjects;
-    RenderPass         renderPass;
-    FrameBuffers       frameBuffers;
     Pipeline           pipeline;
     CommandBuffers     commandBuffers;
 };

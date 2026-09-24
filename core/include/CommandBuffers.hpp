@@ -5,12 +5,12 @@
 
 class CommandBuffers {
   public:
-    CommandBuffers(VkDevice                   pDevice,
-                   VkRenderPass               renderpass,
-                   std::vector<VkFramebuffer> frameBuffers,
-                   VkPipeline                 pPipeline,
-                   VkExtent2D                 extent,
-                   const QueueFamilyIndices   indices);
+    CommandBuffers(VkDevice                 pDevice,
+                   std::vector<VkImageView> pImageViews,
+                   std::vector<VkImage>     pImages,
+                   VkPipeline               pPipeline,
+                   VkExtent2D               extent,
+                   const QueueFamilyIndices indices);
 
     ~CommandBuffers();
 

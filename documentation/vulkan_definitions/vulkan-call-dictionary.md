@@ -8,6 +8,13 @@ calls (`glfwCreateWindow`, `glfwPollEvents`, etc.) are intentionally left out
 This is a living document. New entries get appended (alphabetically) as new
 Vulkan calls are introduced in later steps/milestones.
 
+**Legacy entries:** `vkCreateRenderPass`, `vkDestroyRenderPass`,
+`vkCreateFramebuffer`, `vkDestroyFramebuffer`, `vkCmdBeginRenderPass` and
+`vkCmdEndRenderPass` describe the classic render pass model, which the
+codebase no longer uses after the dynamic rendering refactor. They are kept
+for reference; see `vkCmdBeginRendering`, `vkCmdEndRendering` and
+`vkCmdPipelineBarrier` for what replaced them.
+
 ---
 
 ## glfwCreateWindowSurface
@@ -73,6 +80,26 @@ once at construction — not every frame.
 
 ---
 
+## vkCmdBeginRendering
+
+**Category:** Command Buffer Recording
+
+**What it does:** Records the start of a dynamic rendering instance (core
+in Vulkan 1.3), via `VkRenderingInfo` — the render area, layer count, and an
+array of `VkRenderingAttachmentInfo` structs (pointer plus count) naming the
+image view, layout, `loadOp`/`storeOp` and clear value for each color
+attachment. No `VkRenderPass` or `VkFramebuffer` object is involved.
+
+**Why it matters here:** Replaced `vkCmdBeginRenderPass` in
+`CommandBuffers`'s recording loop. Each buffer builds its own
+`VkRenderingAttachmentInfo` pointing at that frame's swapchain image view
+(`pImageViews[i]`), with `CLEAR`/`STORE` and the opaque-black clear color —
+the same choices the old `RenderPass` attachment description held, now set
+at record time. It does NOT transition image layouts; that is what the two
+`vkCmdPipelineBarrier` calls around it are for.
+
+---
+
 ## vkCmdBeginRenderPass
 
 **Category:** Command Buffer Recording
@@ -118,6 +145,21 @@ own positions from `gl_VertexIndex`, matching the empty
 
 ---
 
+## vkCmdEndRendering
+
+**Category:** Command Buffer Recording
+
+**What it does:** Records the end of the current dynamic rendering
+instance, resolving the attachments' store operations. Takes only the
+command buffer — there is no render pass object to name.
+
+**Why it matters here:** Closes the scope opened by `vkCmdBeginRendering`
+in `CommandBuffers`. Unlike `vkCmdEndRenderPass`, it does not move the
+image to a final layout — the second `vkCmdPipelineBarrier` right after it
+does that (`COLOR_ATTACHMENT_OPTIMAL` to `PRESENT_SRC_KHR`).
+
+---
+
 ## vkCmdEndRenderPass
 
 **Category:** Command Buffer Recording
@@ -130,6 +172,29 @@ here) and transitioning the attachment to its `finalLayout`.
 `vkCmdBeginRenderPass`, triggering the color attachment's transition to
 `VK_IMAGE_LAYOUT_PRESENT_SRC_KHR` as configured in `RenderPass` — the
 layout the swapchain needs for presentation.
+
+---
+
+## vkCmdPipelineBarrier
+
+**Category:** Command Buffer Recording / Synchronization
+
+**What it does:** Records an execution and memory dependency into a command
+buffer: work in the source pipeline stage(s) must finish, and its memory
+access be made visible, before work in the destination stage(s) begins. Takes
+arrays of global, buffer and image barriers; an image barrier
+(`VkImageMemoryBarrier`) can also transition the image's layout
+(`oldLayout` to `newLayout`) as part of the same dependency.
+
+**Why it matters here:** Dynamic rendering does not transition image layouts
+for you, so `CommandBuffers` records two barriers per swapchain image.
+Before rendering: `UNDEFINED` to `COLOR_ATTACHMENT_OPTIMAL`, with source and
+destination stage `COLOR_ATTACHMENT_OUTPUT` (the stage `drawFrame`'s
+`vkQueueSubmit` waits on the image-available semaphore at) and destination
+access `COLOR_ATTACHMENT_WRITE`. After rendering: `COLOR_ATTACHMENT_OPTIMAL`
+to `PRESENT_SRC_KHR`, from `COLOR_ATTACHMENT_OUTPUT` to `BOTTOM_OF_PIPE`.
+These replace the `initialLayout`/`finalLayout` and `VkSubpassDependency`
+that the old `RenderPass` handled implicitly.
 
 ---
 

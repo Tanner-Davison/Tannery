@@ -649,7 +649,43 @@ remembering:
   overlap; at shutdown, with no more frames coming, that cost doesn't
   apply.
 
-## Planned future refactor: dynamic rendering
+## Dynamic rendering refactor — COMPLETE
+
+**Update (later session):** the refactor planned below is done. `RenderPass`
+and `FrameBuffers` are deleted (classes, files, `App` members, CMake
+entries). What replaced them:
+
+- **`LogicalDevice`:** a `VkPhysicalDeviceDynamicRenderingFeatures` struct
+  with `dynamicRendering = VK_TRUE`, chained onto
+  `VkDeviceCreateInfo::pNext`. It coexists with `pEnabledFeatures`
+  (classic 1.0 bits vs. the per-feature struct chain). No
+  `VK_KHR_dynamic_rendering` extension needed, since the instance requests
+  Vulkan 1.3 where it is core. The struct must outlive `vkCreateDevice`,
+  the same rule as `queuePriorities`.
+- **`Pipeline`:** takes a `VkFormat` instead of a `VkRenderPass`. A
+  `VkPipelineRenderingCreateInfo` (color attachment count and formats;
+  depth/stencil `VK_FORMAT_UNDEFINED`) is chained onto
+  `VkGraphicsPipelineCreateInfo::pNext`, and `renderPass` is
+  `VK_NULL_HANDLE`. The pipeline still needs attachment formats at creation
+  even without a render pass object.
+- **`CommandBuffers`:** takes the swapchain's image views and images
+  (`Swapchain::imagesHandle()` added). Per buffer: a
+  `VkRenderingAttachmentInfo` (image view, `CLEAR`/`STORE`, clear value)
+  inside a `VkRenderingInfo`, recorded with
+  `vkCmdBeginRendering`/`vkCmdEndRendering`. Two `VkImageMemoryBarrier`s via
+  `vkCmdPipelineBarrier` do the layout transitions the render pass used to
+  do implicitly (`initialLayout`/`finalLayout` plus the subpass
+  dependency): `UNDEFINED` to `COLOR_ATTACHMENT_OPTIMAL` before rendering,
+  `COLOR_ATTACHMENT_OPTIMAL` to `PRESENT_SRC_KHR` after.
+
+Mistakes worth remembering from this refactor: `srcAccessMask` for a
+transition out of `UNDEFINED` is `0`, not a read bit; the second barrier
+was first copy-pasted from the first (wrong layouts, and the call passed
+`&barrierBefore` instead of `&barrierAfter`); and `vkBeginCommandBuffer` was
+briefly deleted by accident while editing the recording loop. Result:
+identical triangle, zero validation errors on render loop and shutdown.
+
+### Original plan (kept for context)
 
 **Decision (later session):** sticking with the classic `VkRenderPass` +
 `VkFramebuffer` model through the end of Milestone 1, deliberately, even

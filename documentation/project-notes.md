@@ -709,3 +709,41 @@ is all-zero right now, per concept 6). This keeps the learning sequence
 intact — understand the mechanism deeply first, then learn the modern
 shortcut that replaces it, rather than skipping straight to the
 abstraction.
+
+## Future plans — character animation & cloth simulation (not started)
+
+Noted here well ahead of time so future sessions don't have to re-derive
+the reasoning when this milestone actually arrives.
+
+**Planned order of work**, each a prerequisite for the next:
+1. Static mesh rendering (loading a model, shading, basic lighting) — the
+   natural next step after the current triangle/dynamic-rendering
+   foundation.
+2. Skeletal animation / skinning — bone hierarchy, per-vertex bone
+   weights, linear blend (or dual quaternion) skinning in the vertex
+   shader. This is the actual foundation for "custom movement."
+3. Animation blending / state machines / basic IK (idle → walk → run
+   transitions, foot placement).
+4. Cloth / soft-body simulation — deliberately last, once the above is
+   solid.
+
+**Decision on cloth: use Jolt Physics rather than writing a custom
+PBD/XPBD solver from scratch.** Jolt is an open-source (MIT), actively
+developed C++ physics engine (used in Horizon Forbidden West, Death
+Stranding 2, and Godot) with built-in soft-body/cloth simulation, and its
+5.6 release added GPU compute shader interfaces for DX12, Vulkan, and
+Metal — a natural fit given this project's Vulkan foundation.
+
+Reasoning: cloth simulation (constraint solving, self-collision handling)
+is genuinely research-grade work — not a good target for a first from-
+scratch implementation. Using Jolt keeps the project's own effort focused
+on rendering and animation (where the learning goals are), while still
+preserving real ownership at the integration layer: how cloth vertices
+feed back into the renderer, how collision against the character mesh is
+set up, and how the cloth system interacts with the skeletal animation
+above it. Jolt's source is also readable, so it stays available as a
+reference for eventually hand-rolling a solver later, once the fundamentals
+from steps 1-3 are in place.
+
+Not started — no code or integration work has begun on this yet.
+</content>

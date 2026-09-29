@@ -54,6 +54,7 @@ SwapchainSupport App::pickSwapchainSupport(VkPhysicalDevice physicalDevice,
 
 void App::drawFrame() const {
     VkFence fence = syncObjects.getFence();
+    // Waits for all fences if more than one
     vkWaitForFences(this->device.handle(), 1, &fence, VK_TRUE, UINT64_MAX);
     vkResetFences(this->device.handle(), 1, &fence);
     std::vector<VkSemaphore> renderCompleteSemaphores =

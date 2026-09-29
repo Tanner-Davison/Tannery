@@ -20,7 +20,7 @@ CommandBuffers::CommandBuffers(VkDevice                 pDevice,
     if (poolCreationRes != VK_SUCCESS) {
         throw std::runtime_error("Failed to create command pool");
     }
-    // resize command buffer pool to image views size
+    // Resize the buffer pool to match # of imageViews
     commandBuffers.resize(pImageViews.size());
     // ALLocate Command Buffers
     VkCommandBufferAllocateInfo allocInfo{};

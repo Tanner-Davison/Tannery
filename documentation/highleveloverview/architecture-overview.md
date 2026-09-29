@@ -103,9 +103,10 @@ Each layer depends only on things above it.
 
 ### 9. `SyncObjects` — `SyncObjects.hpp/.cpp`
 **Responsibility:** CPU-GPU and GPU-GPU synchronization for the render loop.
-- One `imageAvailableSemaphore`: the presentation engine signals it, and our submit waits on it.
-- One `VkFence`, created **signaled** so the first frame does not block forever.
-- **One render-complete semaphore per swapchain image.** The app signals it and the presentation engine waits on it, so the CPU cannot prove it is safe to reuse, which is why it is indexed by image.
+- `MAX_FRAMES_IN_FLIGHT` (2) is a `public static constexpr`, shared with `App`.
+- **Per frame slot** (indexed by `currentFrame`): one `VkFence` (created **signaled**, so the first wait doesn't block forever) and one image-available semaphore. The fence proves the slot's previous submit finished, which also proves its semaphore is free to signal again.
+- **Per swapchain image** (indexed by `imageIndex`): one render-complete semaphore. The presentation engine waits on it and the CPU can't observe that wait, so it follows the image count.
+- Getters take an index and return one handle by value (bounds-checked with `.at()`).
 - Uses a local guard object so a failure part-way through construction does not leak.
 
 ### 10. `Pipeline` — `Pipeline.hpp/.cpp`
@@ -131,6 +132,7 @@ Each layer depends only on things above it.
 ### 12. `App` — `App.hpp/.cpp`
 **Responsibility:** the orchestrator. It owns everything, wires the dependencies, and runs the loop.
 - Constructor helpers: `pickPhysicalDevice`, `pickQueueFamilies`, `pickSwapchainSupport`.
+- Owns `currentFrame`, the frame-slot counter (wraps at `MAX_FRAMES_IN_FLIGHT - 1`).
 - `run()` loops on `glfwPollEvents()` and `drawFrame()`, then calls `vkDeviceWaitIdle` once after the loop, so the GPU is idle before the destructors run.
 - **Member order is load-bearing.** Reordering the fields can break construction or teardown order.
 
@@ -139,15 +141,18 @@ Each layer depends only on things above it.
 ## 4. The frame, step by step (`App::drawFrame`)
 
 ```
-vkWaitForFences        wait until the previous frame's GPU work is done
-vkResetFences          re-arm the fence
-vkAcquireNextImageKHR  get an image index (signals imageAvailableSemaphore)
-vkQueueSubmit          run commandBuffers[imageIndex]
-                         waits:   imageAvailableSemaphore @ COLOR_ATTACHMENT_OUTPUT
-                         signals: renderCompleteSemaphores[imageIndex] + fence
-vkQueuePresentKHR      show the image
-                         waits:   renderCompleteSemaphores[imageIndex]
+vkWaitForFences        fences[currentFrame]: this slot's previous work is done
+vkResetFences          re-arm that fence
+vkAcquireNextImageKHR  signals imageAvailable[currentFrame]; returns imageIndex
+vkQueueSubmit          runs commandBuffers[imageIndex]
+                         waits:   imageAvailable[currentFrame] @ COLOR_ATTACHMENT_OUTPUT
+                         signals: renderComplete[imageIndex] + fences[currentFrame]
+vkQueuePresentKHR      shows the image
+                         waits:   renderComplete[imageIndex]
+currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT
 ```
+
+`currentFrame` is chosen by us; `imageIndex` is chosen by the driver.
 
 ---
 
@@ -155,7 +160,6 @@ vkQueuePresentKHR      show the image
 
 | Gap | Effect | Direction |
 |-----|--------|-----------|
-| Single fence and `imageAvailable` semaphore | CPU waits on the GPU every frame, so there is no overlap | Frames in flight (2), each with its own sync objects and command buffer |
 | No swapchain recreation | Resize or minimize hits `OUT_OF_DATE` / `SUBOPTIMAL` | Rebuild the swapchain, image views, and command buffers |
 | Positions hardcoded in the shader | No real geometry | Vertex buffer, then staging buffer, index buffer, and UBO with descriptor sets |
 | No depth buffer, textures, or model loading | Nothing 3D yet | Follows the vertex-buffer work |

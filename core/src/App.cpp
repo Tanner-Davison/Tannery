@@ -52,25 +52,23 @@ SwapchainSupport App::pickSwapchainSupport(VkPhysicalDevice physicalDevice,
     return support;
 }
 
-void App::drawFrame() const {
-    VkFence fence = syncObjects.getFence();
-    // Waits for all fences if more than one
+void App::drawFrame() {
+    VkFence fence = syncObjects.getFence(currentFrame);
     vkWaitForFences(this->device.handle(), 1, &fence, VK_TRUE, UINT64_MAX);
     vkResetFences(this->device.handle(), 1, &fence);
-    std::vector<VkSemaphore> renderCompleteSemaphores =
-        syncObjects.getRenderCompleteSemaphores();
     uint32_t imageIndex;
     vkAcquireNextImageKHR(this->device.handle(),
                           swapchain.handle(),
                           UINT64_MAX,
-                          syncObjects.getImageAvailableSemaphore(),
+                          syncObjects.getImageAvailableSemaphore(currentFrame),
                           VK_NULL_HANDLE,
                           &imageIndex);
 
-    VkSemaphore          waitSemaphores[] = {syncObjects.getImageAvailableSemaphore()};
-    VkPipelineStageFlags waitStages[]     = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-    VkSemaphore          signalSemaphore  = renderCompleteSemaphores[imageIndex];
-    std::vector<VkCommandBuffer> _commandBuffers = commandBuffers.getCmdBuffers();
+    VkSemaphore renderCompleteSemaphore = syncObjects.getRenderCompleteSemaphore(imageIndex);
+    VkSemaphore waitSemaphores[]      = {syncObjects.getImageAvailableSemaphore(currentFrame)};
+    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkSemaphore          signalSemaphore = renderCompleteSemaphore;
+    VkCommandBuffer      _commandBuffer  = commandBuffers.getCmdBuffer(imageIndex);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -78,7 +76,7 @@ void App::drawFrame() const {
     submitInfo.pWaitSemaphores      = waitSemaphores;
     submitInfo.pWaitDstStageMask    = waitStages;
     submitInfo.commandBufferCount   = 1;
-    submitInfo.pCommandBuffers      = &_commandBuffers[imageIndex];
+    submitInfo.pCommandBuffers      = &_commandBuffer;
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores    = &signalSemaphore;
 
@@ -95,6 +93,12 @@ void App::drawFrame() const {
     presentInfo.pResults           = nullptr;
 
     vkQueuePresentKHR(device.PresentQueueHandle(), &presentInfo);
+
+    if (currentFrame == (SyncObjects::MAX_FRAMES_IN_FLIGHT - 1)) {
+        currentFrame = 0;
+    } else {
+        ++currentFrame;
+    }
 };
 
 void App::run() {

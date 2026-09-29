@@ -20,8 +20,8 @@ class CommandBuffers {
     CommandBuffers(CommandBuffers&&)                 = delete;
     CommandBuffers& operator=(CommandBuffers&&)      = delete;
 
-    const std::vector<VkCommandBuffer> getCmdBuffers() const;
-    const VkCommandPool                getCmdPool() const;
+    VkCommandBuffer     getCmdBuffer(uint32_t imageIndex) const;
+    const VkCommandPool getCmdPool() const;
 
   private:
     std::vector<VkCommandBuffer> commandBuffers;

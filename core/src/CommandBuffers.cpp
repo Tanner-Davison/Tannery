@@ -115,8 +115,8 @@ CommandBuffers::~CommandBuffers() {
     vkDestroyCommandPool(this->device, this->commandPool, nullptr);
 }
 
-const std::vector<VkCommandBuffer> CommandBuffers::getCmdBuffers() const {
-    return this->commandBuffers;
+VkCommandBuffer CommandBuffers::getCmdBuffer(uint32_t imageIndex) const {
+    return this->commandBuffers.at(imageIndex);
 };
 
 const VkCommandPool CommandBuffers::getCmdPool() const {

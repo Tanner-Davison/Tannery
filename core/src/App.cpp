@@ -1,9 +1,8 @@
 #include "App.hpp"
+#include "copyBuffer.hpp"
 #include "physicalDevice.hpp"
-#include <chrono>
 #include <filesystem>
 #include <memory>
-#include <print>
 #include <stdexcept>
 
 App::App(int width, int height, const char* title)
@@ -13,6 +12,11 @@ App::App(int width, int height, const char* title)
     , physicalDevice(pickPhysicalDevice(instance.handle()))
     , indices(pickQueueFamilies(physicalDevice, surface.handle()))
     , device(physicalDevice, indices)
+    , allocator(this->instance.handle(), this->physicalDevice, this->device.handle())
+    , vertexBuffer(createVertexBuffer(allocator.handle(),
+                                      device.handle(),
+                                      device.GraphicsQueueHandle(),
+                                      indices.graphicsFamilyIndex.value()))
     , support(pickSwapchainSupport(physicalDevice, surface.handle()))
     , swapchain(std::make_unique<Swapchain>(device.handle(),
                                             surface.handle(),
@@ -33,6 +37,7 @@ App::App(int width, int height, const char* title)
                                                       pipeline->pipelineHandle(),
                                                       swapchain->extentHandle(),
                                                       indices)) {
+    // Window Resize
     glfwSetWindowUserPointer(window.handle(), this);
     glfwSetFramebufferSizeCallback(window.handle(), [](GLFWwindow* w, int, int) {
         auto* app               = static_cast<App*>(glfwGetWindowUserPointer(w));
@@ -68,6 +73,42 @@ SwapchainSupport App::pickSwapchainSupport(VkPhysicalDevice physicalDevice,
     }
     return support;
 }
+
+std::unique_ptr<Buffer> App::createVertexBuffer(VmaAllocator pAllocator,
+                                                VkDevice     pDevice,
+                                                VkQueue      pQueue,
+                                                uint32_t     pQueueFamilyIndex) {
+    const std::vector<Vertex> vertices = {
+        {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+        {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+        {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+    };
+    const VkDeviceSize size = sizeof(Vertex) * vertices.size();
+    // 1. CPU-Visible staging buffer, filled with vertices
+    Buffer staging(pAllocator,
+                   size,
+                   VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                   VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+    vmaCopyMemoryToAllocation(pAllocator,
+                              vertices.data(),
+                              staging.allocationHandle(),
+                              0,
+                              size);
+    // 2. GPU-local vertex buffer
+    auto vertexBuffer = std::make_unique<Buffer>(
+        pAllocator,
+        size,
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        0);
+    // 3. copy staging into it and wait
+    copyBuffer(pDevice,
+               pQueue,
+               pQueueFamilyIndex,
+               staging.handle(),
+               vertexBuffer->handle(),
+               size);
+    return vertexBuffer;
+};
 
 void App::drawFrame() {
     if (frameBufferResized) {

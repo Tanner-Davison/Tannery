@@ -1,6 +1,8 @@
 #include "Pipeline.hpp"
 #include "shaderModule.hpp"
+#include <format>
 #include <stdexcept>
+#include <vk_enum_string_helper.h>
 
 /* SHADER MODULE SCOPED GUARD */
 namespace {
@@ -119,12 +121,14 @@ Pipeline::Pipeline(VkDevice                     pDevice,
     pipelineLayoutInfo.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 0;
     pipelineLayoutInfo.pSetLayouts    = nullptr;
-
-    if (vkCreatePipelineLayout(this->device,
-                               &pipelineLayoutInfo,
-                               nullptr,
-                               &this->pipelineLayout) != VK_SUCCESS) {
-        throw std::runtime_error("Error: could not create vkCreatePipelineLayout");
+    VkResult pipelineLayoutResult     = vkCreatePipelineLayout(this->device,
+                                                           &pipelineLayoutInfo,
+                                                           nullptr,
+                                                           &this->pipelineLayout);
+    if (pipelineLayoutResult != VK_SUCCESS) {
+        throw std::runtime_error(
+            std::format("Error: could not create vkCreatePipelineLayout. VkError: {}",
+                        string_VkResult(pipelineLayoutResult)));
     }
 
     VkFormat                      colorFormat = pSurfaceFormat;
@@ -159,13 +163,16 @@ Pipeline::Pipeline(VkDevice                     pDevice,
     pipelineInfo.renderPass          = nullptr;
     pipelineInfo.subpass             = 0;
 
-    if (vkCreateGraphicsPipelines(this->device,
-                                  VK_NULL_HANDLE,
-                                  1,
-                                  &pipelineInfo,
-                                  nullptr,
-                                  &this->pipeline) != VK_SUCCESS) {
-        throw std::runtime_error("Error: Could Not Create vkCreateGraphicsPipelines");
+    VkResult graphicsPipelineResult = vkCreateGraphicsPipelines(this->device,
+                                                                VK_NULL_HANDLE,
+                                                                1,
+                                                                &pipelineInfo,
+                                                                nullptr,
+                                                                &this->pipeline);
+    if (graphicsPipelineResult != VK_SUCCESS) {
+        throw std::runtime_error(
+            std::format("Error: Could Not Create vkCreateGraphicsPipelines. VkError: {}",
+                        string_VkResult(graphicsPipelineResult)));
     }
 };
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Allocator.hpp"
+#include "Buffer.hpp"
 #include "CommandBuffers.hpp"
 #include "LogicalDevice.hpp"
 #include "Pipeline.hpp"
@@ -26,22 +28,29 @@ class App {
 
   private:
     // helpers
-    static VkPhysicalDevice         pickPhysicalDevice(VkInstance instance);
-    static QueueFamilyIndices       pickQueueFamilies(VkPhysicalDevice physicalDevice,
-                                                      VkSurfaceKHR     surface);
-    static SwapchainSupport         pickSwapchainSupport(VkPhysicalDevice physicalDevice,
-                                                         VkSurfaceKHR     surface);
-    bool                            frameBufferResized = false;
-    std::vector<VkFence>            imagesInFlight;
-    void                            recreateSwapchain();
-    void                            drawFrame();
-    uint32_t                        currentFrame = 0;
+    static VkPhysicalDevice        pickPhysicalDevice(VkInstance instance);
+    static QueueFamilyIndices      pickQueueFamilies(VkPhysicalDevice physicalDevice,
+                                                     VkSurfaceKHR     surface);
+    static SwapchainSupport        pickSwapchainSupport(VkPhysicalDevice physicalDevice,
+                                                        VkSurfaceKHR     surface);
+    static std::unique_ptr<Buffer> createVertexBuffer(VmaAllocator pAllocator,
+                                                      VkDevice     pDevice,
+                                                      VkQueue      pQueue,
+                                                      uint32_t     pQueueFamilyIndex);
+    bool                           frameBufferResized = false;
+    std::vector<VkFence>           imagesInFlight;
+    void                           recreateSwapchain();
+    void                           drawFrame();
+    uint32_t                       currentFrame = 0;
+
     Window                          window;
     VulkanInstance                  instance;
     Surface                         surface;
     VkPhysicalDevice                physicalDevice;
     QueueFamilyIndices              indices;
     LogicalDevice                   device;
+    Allocator                       allocator;
+    std::unique_ptr<Buffer>         vertexBuffer;
     SwapchainSupport                support;
     std::unique_ptr<Swapchain>      swapchain;
     std::unique_ptr<SyncObjects>    syncObjects;

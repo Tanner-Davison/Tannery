@@ -1,5 +1,7 @@
 #include "CommandBuffers.hpp"
+#include <format>
 #include <stdexcept>
+#include <vk_enum_string_helper.h>
 
 CommandBuffers::CommandBuffers(VkDevice                 pDevice,
                                std::vector<VkImageView> pImageViews,
@@ -18,7 +20,8 @@ CommandBuffers::CommandBuffers(VkDevice                 pDevice,
         vkCreateCommandPool(this->device, &commandPoolInfo, nullptr, &commandPool));
 
     if (poolCreationRes != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create command pool");
+        throw std::runtime_error(std::format("Failed to create command pool. VkError: {}",
+                                             string_VkResult(poolCreationRes)));
     }
     // Resize the buffer pool to match # of imageViews
     commandBuffers.resize(pImageViews.size());
@@ -31,7 +34,9 @@ CommandBuffers::CommandBuffers(VkDevice                 pDevice,
     VkResult checkAllocated(
         vkAllocateCommandBuffers(this->device, &allocInfo, this->commandBuffers.data()));
     if (checkAllocated != VK_SUCCESS) {
-        throw std::runtime_error("Failed to Allocate Command  Buffers");
+        throw std::runtime_error(
+            std::format("Failed to Allocate Command  Buffers. VkError: {}",
+                        string_VkResult(checkAllocated)));
     }
 
     constexpr uint32_t     VERTEXCOUNT{3}, INSTANCECOUNT{1}, FIRSTVERTEX{0}, FIRSTINSTANCE{0};

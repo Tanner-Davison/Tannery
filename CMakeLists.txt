@@ -28,7 +28,11 @@ set(SOURCES
     core/src/shaderModule.cpp
     core/src/Pipeline.cpp
     core/src/CommandBuffers.cpp
-    core/src/SyncObjects.cpp)
+    core/src/SyncObjects.cpp
+    core/src/vma.cpp
+    core/src/Allocator.cpp
+    core/src/Buffer.cpp
+    core/src/copyBuffer.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 

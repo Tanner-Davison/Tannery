@@ -3,6 +3,7 @@
 #include <format>
 #include <limits>
 #include <stdexcept>
+#include <vk_enum_string_helper.h>
 #include <vulkan/vulkan.h>
 
 Swapchain::Swapchain(VkDevice                  pLogicalDevice,
@@ -67,7 +68,7 @@ Swapchain::Swapchain(VkDevice                  pLogicalDevice,
         vkCreateSwapchainKHR(pLogicalDevice, &createInfo, nullptr, &this->swapchain);
     if (swapchainResult != VK_SUCCESS) {
         throw std::runtime_error(std::format("Failed to create Swapchain. VkResult code: {}",
-                                             (int)swapchainResult));
+                                             string_VkResult(swapchainResult)));
     }
 
     vkGetSwapchainImagesKHR(this->deviceHandle, this->swapchain, &this->imageCount, nullptr);
@@ -104,7 +105,9 @@ Swapchain::Swapchain(VkDevice                  pLogicalDevice,
                                                            nullptr,
                                                            &this->imageViews[i]);
         if (createImageViewResult != VK_SUCCESS) {
-            throw std::runtime_error("Error: Failed to create Image view");
+            throw std::runtime_error(
+                std::format("Error: Failed to create Image view. VkError: {}",
+                            string_VkResult(createImageViewResult)));
         }
     }
 };

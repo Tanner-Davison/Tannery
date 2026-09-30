@@ -1,4 +1,5 @@
 #pragma once
+#include "Vertex.hpp"
 #include <filesystem>
 #include <vulkan/vulkan.h>
 

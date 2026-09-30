@@ -2,6 +2,7 @@
 #include <format>
 #include <stdexcept>
 #include <vector>
+#include <vk_enum_string_helper.h>
 
 namespace {
 struct SemaphoreModuleGuard {
@@ -53,7 +54,9 @@ SyncObjects::SyncObjects(VkDevice pDevice, uint32_t pImageCount) : device(pDevic
                                                      nullptr,
                                                      &imagesAvailableSemaphores[i]));
         if (imageAvailableRes != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create the Image Available Semaphore");
+            throw std::runtime_error(
+                std::format("Failed to create the Image Available Semaphore. VkError: {}",
+                            string_VkResult(imageAvailableRes)));
         }
 
         semGuard.push_back(imagesAvailableSemaphores[i]);
@@ -65,7 +68,9 @@ SyncObjects::SyncObjects(VkDevice pDevice, uint32_t pImageCount) : device(pDevic
                                                      nullptr,
                                                      &renderCompleteSemaphores[i]));
         if (renderFinishedRes != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create the Render Finish Semaphore(s)");
+            throw std::runtime_error(
+                std::format("Failed to create the Render Finish Semaphore(s), VkError: {}",
+                            string_VkResult(renderFinishedRes)));
         }
 
         semGuard.push_back(renderCompleteSemaphores[i]);
@@ -82,7 +87,9 @@ SyncObjects::SyncObjects(VkDevice pDevice, uint32_t pImageCount) : device(pDevic
             vkCreateFence(this->device, &fenceInfo, nullptr, &this->fences[i]));
         if (fenceResult != VK_SUCCESS) {
             throw std::runtime_error(
-                std::format("Failed to create a fence for the vkCreateFence fences[{}]", i));
+                std::format("Failed to create a fence for the vkCreateFence fences[{}]: {}",
+                            i,
+                            string_VkResult(fenceResult)));
         }
     }
     // RELEASE THE OWNERSHIP BACK TO THIS- SYNC OBJECTS CLASS

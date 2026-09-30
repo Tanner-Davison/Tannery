@@ -8,7 +8,8 @@ CommandBuffers::CommandBuffers(VkDevice                 pDevice,
                                std::vector<VkImage>     pImages,
                                VkPipeline               pPipeline,
                                VkExtent2D               extent,
-                               const QueueFamilyIndices indices)
+                               const QueueFamilyIndices indices,
+                               VkBuffer                 pVertexBuffer)
     : device(pDevice) {
     VkCommandPoolCreateInfo commandPoolInfo{};
     commandPoolInfo.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -88,6 +89,9 @@ CommandBuffers::CommandBuffers(VkDevice                 pDevice,
         renderingInfo.pColorAttachments    = &colorAttachment;
         vkCmdBeginRendering(commandBuffers[i], &renderingInfo);
         vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pPipeline);
+        VkBuffer     vertexBuffers[] = {pVertexBuffer};
+        VkDeviceSize offsets[]       = {0};
+        vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
         VkViewport viewport{0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f};
         VkRect2D   scissor{{0, 0}, extent};
         vkCmdSetViewport(commandBuffers[i], 0, 1, &viewport);

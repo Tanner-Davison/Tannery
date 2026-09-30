@@ -1,6 +1,32 @@
 # Vertex Buffers
 
-**Status:** in progress (roadmap step 3 of 4: frames in flight ✔ → swapchain recreation ✔ → vertex buffers → index/uniform buffers).
+**Status:** COMPLETE (roadmap step 3 of 4: frames in flight ✔ → swapchain recreation ✔ → vertex buffers ✔ → index/uniform buffers). Renders a red/green/blue gradient triangle from a real vertex buffer, clean under validation, including after resizes.
+
+## What was implemented
+
+- **VMA** (Vulkan Memory Allocator, MIT, apt `libvulkan-memory-allocator-dev`) chosen over hand-written
+  memory allocation. `vma.cpp` is the single translation unit with `VMA_IMPLEMENTATION`;
+  `Allocator` (RAII, declared right after `device` in `App`) owns the `VmaAllocator`.
+- `Buffer` (RAII): `vmaCreateBuffer` / `vmaDestroyBuffer`, with usage and VMA allocation flags passed in.
+- `copyBuffer` (free function): its own transient command pool, one-time command buffer,
+  `vkCmdCopyBuffer`, submit, `vkQueueWaitIdle`.
+- `App::createVertexBuffer`: CPU-visible staging buffer (`HOST_ACCESS_SEQUENTIAL_WRITE`, filled via
+  `vmaCopyMemoryToAllocation`) copied into a GPU-local vertex buffer; staging is destroyed on scope exit.
+- `Vertex.hpp`: `pos` (vec2) + `color` (vec3), binding and attribute descriptions.
+  `Pipeline` uses them in its vertex input state; `CommandBuffers` records `vkCmdBindVertexBuffers`;
+  the shaders read `location 0/1` inputs.
+- The `vertexBuffer` member sits after `allocator` and before `commandBuffers`, and its handle is
+  passed at **both** places `CommandBuffers` is built (constructor and `recreateSwapchain`).
+
+## Mistakes worth remembering
+
+- `Buffer` first used an uninitialized `allocator` member, never stored `size`, and declared a
+  destructor with no definition. None showed up because nothing constructed a `Buffer` yet:
+  always instantiate a new class to test it.
+- New `.cpp` files not added to CMake `SOURCES` (`Allocator.cpp`, `Buffer.cpp`, `copyBuffer.cpp`)
+  cause link errors ("undefined reference"), not compile errors.
+- Forgetting the new `CommandBuffers` argument in `recreateSwapchain`.
+- `std::format` accepts extra arguments silently: a message with no `{}` drops the `VkResult`.
 
 ## Goal
 

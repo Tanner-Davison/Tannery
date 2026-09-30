@@ -36,7 +36,8 @@ App::App(int width, int height, const char* title)
                                                       swapchain->imagesHandle(),
                                                       pipeline->pipelineHandle(),
                                                       swapchain->extentHandle(),
-                                                      indices)) {
+                                                      indices,
+                                                      vertexBuffer->handle())) {
     // Window Resize
     glfwSetWindowUserPointer(window.handle(), this);
     glfwSetFramebufferSizeCallback(window.handle(), [](GLFWwindow* w, int, int) {
@@ -233,6 +234,7 @@ void App::recreateSwapchain() {
                                                       swapchain->imagesHandle(),
                                                       pipeline->pipelineHandle(),
                                                       swapchain->extentHandle(),
-                                                      indices);
+                                                      indices,
+                                                      vertexBuffer->handle());
     imagesInFlight.assign(swapchain->imageCountHandle(), VK_NULL_HANDLE);
 }

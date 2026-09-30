@@ -10,7 +10,8 @@ class CommandBuffers {
                    std::vector<VkImage>     pImages,
                    VkPipeline               pPipeline,
                    VkExtent2D               extent,
-                   const QueueFamilyIndices indices);
+                   const QueueFamilyIndices indices,
+                   VkBuffer                 pVertexBuffer);
 
     ~CommandBuffers();
 

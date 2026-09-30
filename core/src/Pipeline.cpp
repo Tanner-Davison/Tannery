@@ -1,4 +1,5 @@
 #include "Pipeline.hpp"
+#include "Vertex.hpp"
 #include "shaderModule.hpp"
 #include <format>
 #include <stdexcept>
@@ -54,12 +55,14 @@ Pipeline::Pipeline(VkDevice                     pDevice,
     /* Vertex Input & Assembly Info*/
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertStageInfo, fragStageInfo};
 
+    auto                                 binding = Vertex::getBindingDescription();
+    auto                                 attrs   = Vertex::getAttributeDescriptions();
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount   = 0;
-    vertexInputInfo.pVertexBindingDescriptions      = nullptr;
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions    = nullptr;
+    vertexInputInfo.vertexBindingDescriptionCount   = 1;
+    vertexInputInfo.pVertexBindingDescriptions      = &binding;
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attrs.size());
+    vertexInputInfo.pVertexAttributeDescriptions    = attrs.data();
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType    = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;

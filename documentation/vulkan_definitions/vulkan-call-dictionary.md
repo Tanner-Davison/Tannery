@@ -946,3 +946,18 @@ versus GPU-local (vertex) memory.
 
 **Why it matters here:** Fills the staging buffer with the vertex array. Fails
 if the allocation wasn't created with a `HOST_ACCESS_*` flag.
+
+---
+
+## vkCmdBindVertexBuffers
+
+**Category:** Command recording
+
+**What it does:** Binds one or more `VkBuffer`s (with byte offsets) to
+consecutive vertex input binding slots, starting at a first-binding index. The
+binding index must match `VkVertexInputBindingDescription::binding` in the
+pipeline's vertex input state.
+
+**Why it matters here:** Recorded in `CommandBuffers` after `vkCmdBindPipeline`
+and before `vkCmdDraw`, so the vertex shader reads real positions and colors
+from the GPU-local vertex buffer instead of a hardcoded array.

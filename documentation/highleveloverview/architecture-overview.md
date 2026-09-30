@@ -43,6 +43,14 @@ Each layer depends only on things above it.
 | 10 | `Pipeline` | RAII class | `VkPipeline`, `VkPipelineLayout` | Device, Swapchain extent and format, SPIR-V shaders |
 | 11 | `CommandBuffers` | RAII class | `VkCommandPool`, `VkCommandBuffer`s | Device, Swapchain images and views, Pipeline |
 | 12 | `App::drawFrame()` | method | (nothing) | All of the above |
+| + | `Allocator` | RAII class | `VmaAllocator` (Vulkan Memory Allocator) | Instance, Physical device, Device |
+| + | `Buffer` | RAII class | `VkBuffer` + `VmaAllocation` | Allocator |
+| + | `Vertex` | header-only struct | (nothing) | GLM; describes vertex layout for `Pipeline` |
+| + | `copyBuffer` | free function | (nothing; temporary pool) | Device, graphics queue |
+
+`App` also holds the swapchain-dependent members (`Swapchain`, `SyncObjects`, `Pipeline`,
+`CommandBuffers`) as `std::unique_ptr`s so `recreateSwapchain()` can rebuild them on resize. The
+`Allocator` is declared right after `LogicalDevice`, and `vertexBuffer` after the `Allocator`.
 
 ---
 
@@ -160,7 +168,7 @@ currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT
 
 | Gap | Effect | Direction |
 |-----|--------|-----------|
-| Positions hardcoded in the shader | No real geometry | Vertex buffer, then staging buffer, index buffer, and UBO with descriptor sets |
+| Only one hardcoded 3-vertex triangle | No real geometry yet | Index buffer, then uniform buffers with descriptor sets (camera/transform via GLM) |
 | No depth buffer, textures, or model loading | Nothing 3D yet | Follows the vertex-buffer work |
 
 Longer-term roadmap (static mesh → skeletal animation → blending/IK → Jolt cloth)

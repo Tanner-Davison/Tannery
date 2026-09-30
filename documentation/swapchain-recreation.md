@@ -1,6 +1,45 @@
 # Swapchain Recreation
 
-**Status:** in progress (roadmap step 2 of 4: frames in flight ✔ → swapchain recreation → vertex buffers → index/uniform buffers).
+**Status:** COMPLETE (roadmap step 2 of 4: frames in flight ✔ → swapchain recreation ✔ → vertex buffers → index/uniform buffers).
+
+## What was implemented
+
+- `Swapchain`, `SyncObjects`, `Pipeline` and `CommandBuffers` are `std::unique_ptr` members of `App`
+  (declaration order unchanged, so teardown order is unchanged). `unique_ptr` has no per-access
+  runtime overhead beyond one pointer load; one allocation per recreation.
+- `App::recreateSwapchain()`: wait out a `0x0` framebuffer (`glfwWaitEvents`), `vkDeviceWaitIdle`,
+  re-query `SwapchainSupport` (the cached `currentExtent` is stale after a resize), then reset and
+  rebuild dependents in order. The old swapchain must be destroyed first because no `oldSwapchain`
+  is passed.
+- Viewport and scissor are dynamic pipeline state (`VkPipelineDynamicStateCreateInfo`) and recorded
+  per command buffer (`vkCmdSetViewport` / `vkCmdSetScissor`), so the pipeline survives a resize
+  and is not rebuilt.
+- `drawFrame`: acquire returning `OUT_OF_DATE` recreates and skips the frame; the fence is reset
+  only after acquire succeeds (otherwise a failed acquire strands an unsignaled fence and the next
+  wait hangs); present returning `OUT_OF_DATE`/`SUBOPTIMAL` recreates.
+- A GLFW framebuffer-size callback (via `glfwSetWindowUserPointer`) sets a `frameBufferResized`
+  flag, checked at the top of `drawFrame`. Needed because Wayland/NVIDIA does not reliably return
+  `OUT_OF_DATE` on resize.
+- `GLFW_RESIZABLE` had to be enabled in `Window.cpp`.
+
+## Findings
+
+- Measured: recreate about 7 ms, acquire about 8 ms (one vsync interval). No blocking in the
+  frame loop.
+- **Root cause of the laggy resize: native Wayland.** With the same renderer, forcing X11
+  (`glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11)` before `glfwInit`, running via XWayland) made
+  live resizing fast and responsive. On native Wayland the window only takes its new size after the
+  client commits a buffer at that size, which on this GNOME + GLFW 3.4 setup lagged about half a
+  second. Tradeoff: forcing X11 makes `glfwInit` fail where no X server/XWayland exists.
+- Not done (optional): pass `oldSwapchain`, rebuild `SyncObjects` only when the image count
+  changes, skip recreation when the extent is unchanged.
+
+## Mistakes worth remembering
+
+- Rebuilding the pipeline on every recreate; making viewport/scissor dynamic only helps once the
+  rebuild is actually deleted.
+- Relying on `OUT_OF_DATE`/`SUBOPTIMAL` alone; some platforms never return them on resize.
+- Handling the resize flag after present (one stale-size frame per step) instead of before draw.
 
 ## The problem
 

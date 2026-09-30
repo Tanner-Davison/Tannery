@@ -83,6 +83,10 @@ CommandBuffers::CommandBuffers(VkDevice                 pDevice,
         renderingInfo.pColorAttachments    = &colorAttachment;
         vkCmdBeginRendering(commandBuffers[i], &renderingInfo);
         vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pPipeline);
+        VkViewport viewport{0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f};
+        VkRect2D   scissor{{0, 0}, extent};
+        vkCmdSetViewport(commandBuffers[i], 0, 1, &viewport);
+        vkCmdSetScissor(commandBuffers[i], 0, 1, &scissor);
         vkCmdDraw(commandBuffers[i], VERTEXCOUNT, INSTANCECOUNT, FIRSTVERTEX, FIRSTINSTANCE);
         vkCmdEndRendering(commandBuffers[i]);
 

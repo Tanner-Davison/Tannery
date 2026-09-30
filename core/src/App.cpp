@@ -1,6 +1,9 @@
 #include "App.hpp"
 #include "physicalDevice.hpp"
+#include <chrono>
 #include <filesystem>
+#include <memory>
+#include <print>
 #include <stdexcept>
 
 App::App(int width, int height, const char* title)
@@ -11,19 +14,33 @@ App::App(int width, int height, const char* title)
     , indices(pickQueueFamilies(physicalDevice, surface.handle()))
     , device(physicalDevice, indices)
     , support(pickSwapchainSupport(physicalDevice, surface.handle()))
-    , swapchain(device.handle(), surface.handle(), support, window.handle(), indices)
-    , syncObjects(device.handle(), swapchain.imageCountHandle())
-    , pipeline(device.handle(),
-               swapchain.extentHandle(),
-               std::filesystem::path(SHADER_DIR) / "triangle.vert.spv",
-               std::filesystem::path(SHADER_DIR) / "triangle.frag.spv",
-               swapchain.formatHandle().format)
-    , commandBuffers(device.handle(),
-                     swapchain.imageViewsHandle(),
-                     swapchain.imagesHandle(),
-                     pipeline.pipelineHandle(),
-                     swapchain.extentHandle(),
-                     indices) {}
+    , swapchain(std::make_unique<Swapchain>(device.handle(),
+                                            surface.handle(),
+                                            support,
+                                            window.handle(),
+                                            indices))
+    , syncObjects(
+          std::make_unique<SyncObjects>(device.handle(), swapchain->imageCountHandle()))
+    , pipeline(
+          std::make_unique<Pipeline>(device.handle(),
+                                     swapchain->extentHandle(),
+                                     std::filesystem::path(SHADER_DIR) / "triangle.vert.spv",
+                                     std::filesystem::path(SHADER_DIR) / "triangle.frag.spv",
+                                     swapchain->formatHandle().format))
+    , commandBuffers(std::make_unique<CommandBuffers>(device.handle(),
+                                                      swapchain->imageViewsHandle(),
+                                                      swapchain->imagesHandle(),
+                                                      pipeline->pipelineHandle(),
+                                                      swapchain->extentHandle(),
+                                                      indices)) {
+    glfwSetWindowUserPointer(window.handle(), this);
+    glfwSetFramebufferSizeCallback(window.handle(), [](GLFWwindow* w, int, int) {
+        auto* app               = static_cast<App*>(glfwGetWindowUserPointer(w));
+        app->frameBufferResized = true;
+    });
+
+    imagesInFlight.assign(swapchain->imageCountHandle(), VK_NULL_HANDLE);
+}
 
 VkPhysicalDevice App::pickPhysicalDevice(VkInstance instance) {
     VkPhysicalDevice physicalDevice = getPhysicalDevice(instance);
@@ -53,22 +70,43 @@ SwapchainSupport App::pickSwapchainSupport(VkPhysicalDevice physicalDevice,
 }
 
 void App::drawFrame() {
-    VkFence fence = syncObjects.getFence(currentFrame);
-    vkWaitForFences(this->device.handle(), 1, &fence, VK_TRUE, UINT64_MAX);
-    vkResetFences(this->device.handle(), 1, &fence);
-    uint32_t imageIndex;
-    vkAcquireNextImageKHR(this->device.handle(),
-                          swapchain.handle(),
-                          UINT64_MAX,
-                          syncObjects.getImageAvailableSemaphore(currentFrame),
-                          VK_NULL_HANDLE,
-                          &imageIndex);
+    if (frameBufferResized) {
+        frameBufferResized = false;
+        recreateSwapchain();
+    }
+    VkFence fence = syncObjects->getFence(currentFrame);
 
-    VkSemaphore renderCompleteSemaphore = syncObjects.getRenderCompleteSemaphore(imageIndex);
-    VkSemaphore waitSemaphores[]      = {syncObjects.getImageAvailableSemaphore(currentFrame)};
-    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    vkWaitForFences(this->device.handle(), 1, &fence, VK_TRUE, UINT64_MAX);
+
+    uint32_t imageIndex;
+
+    VkResult result =
+        vkAcquireNextImageKHR(this->device.handle(),
+                              swapchain->handle(),
+                              UINT64_MAX,
+                              syncObjects->getImageAvailableSemaphore(currentFrame),
+                              VK_NULL_HANDLE,
+                              &imageIndex);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        recreateSwapchain();
+        return;
+    }
+
+    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        throw std::runtime_error("Failed to acquire swapchain image");
+    }
+    if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
+        vkWaitForFences(device.handle(), 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+    }
+    imagesInFlight[imageIndex] = fence;
+
+    vkResetFences(this->device.handle(), 1, &fence);
+
+    VkSemaphore renderCompleteSemaphore = syncObjects->getRenderCompleteSemaphore(imageIndex);
+    VkSemaphore waitSemaphores[] = {syncObjects->getImageAvailableSemaphore(currentFrame)};
+    VkPipelineStageFlags waitStages[]    = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     VkSemaphore          signalSemaphore = renderCompleteSemaphore;
-    VkCommandBuffer      _commandBuffer  = commandBuffers.getCmdBuffer(imageIndex);
+    VkCommandBuffer      _commandBuffer  = commandBuffers->getCmdBuffer(imageIndex);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -82,7 +120,7 @@ void App::drawFrame() {
 
     vkQueueSubmit(device.GraphicsQueueHandle(), 1, &submitInfo, fence);
 
-    VkSwapchainKHR   swapchains[] = {this->swapchain.handle()};
+    VkSwapchainKHR   swapchains[] = {this->swapchain->handle()};
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
@@ -92,7 +130,15 @@ void App::drawFrame() {
     presentInfo.pImageIndices      = &imageIndex;
     presentInfo.pResults           = nullptr;
 
-    vkQueuePresentKHR(device.PresentQueueHandle(), &presentInfo);
+    VkResult presentResult = vkQueuePresentKHR(device.PresentQueueHandle(), &presentInfo);
+
+    // RESIZE CALLBACK------------
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR ||
+        frameBufferResized) {
+        frameBufferResized = false;
+        recreateSwapchain();
+    }
+    //-----------------------------
 
     if (currentFrame == (SyncObjects::MAX_FRAMES_IN_FLIGHT - 1)) {
         currentFrame = 0;
@@ -109,4 +155,42 @@ void App::run() {
     }
     // Ensures my classes destructors all run before we exit
     vkDeviceWaitIdle(this->device.handle());
+}
+
+void App::recreateSwapchain() {
+    // Wait out a minimized window (0x0 framebuffer)
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(window.handle(), &width, &height);
+    while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(window.handle(), &width, &height);
+        glfwWaitEvents();
+    }
+
+    // GPU must be done with everything we are about to destroy
+    vkDeviceWaitIdle(device.handle());
+
+    // 3. Refresh the cached surface capabilities (new currentExtent)
+    support = pickSwapchainSupport(this->physicalDevice, surface.handle());
+
+    // 4. Destroy old objects, dependants first
+    commandBuffers.reset();
+    syncObjects.reset();
+    swapchain.reset();
+
+    // 5. Rebuild in dependancy order ( same expressions as the constructor )
+
+    swapchain = std::make_unique<Swapchain>(device.handle(),
+                                            surface.handle(),
+                                            support,
+                                            window.handle(),
+                                            indices);
+    syncObjects =
+        std::make_unique<SyncObjects>(device.handle(), swapchain->imageCountHandle());
+    commandBuffers = std::make_unique<CommandBuffers>(device.handle(),
+                                                      swapchain->imageViewsHandle(),
+                                                      swapchain->imagesHandle(),
+                                                      pipeline->pipelineHandle(),
+                                                      swapchain->extentHandle(),
+                                                      indices);
+    imagesInFlight.assign(swapchain->imageCountHandle(), VK_NULL_HANDLE);
 }

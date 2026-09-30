@@ -491,6 +491,22 @@ canStop`, which compiles on Linux (the first block is stripped) but is a
   validation-layers lesson — if this project is ever set up on a fresh
   machine, this package needs installing explicitly or validation-layer
   requests will fail with `VK_ERROR_LAYER_NOT_PRESENT`.
+- **Live window resizing is much smoother under X11 (XWayland) than native
+  Wayland on this machine.** With native Wayland the window frame snapped to
+  the new size about half a second after a drag, even though the renderer's
+  swapchain recreation only takes about 7 ms and nothing in the frame loop
+  blocks. Forcing `glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11)` before
+  `glfwInit()` fixed the feel. Also note that Wayland/NVIDIA did not return
+  `VK_ERROR_OUT_OF_DATE_KHR` on resize, so a GLFW framebuffer-size callback
+  setting a flag is required to trigger swapchain recreation at all.
+- **Window size units differ between X11 and native Wayland.** Under the
+  forced X11 platform (XWayland), `glfwCreateWindow(800, 600, ...)` produced
+  a much smaller window than on native Wayland, where the same numbers are
+  logical points multiplied by the display scale. Fixed with
+  `glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE)` before window creation,
+  which scales the requested size by the monitor's content scale. Swapchain
+  extents should always come from `glfwGetFramebufferSize` (pixels), never
+  from the size passed to `glfwCreateWindow`.
 - **CMake keyword arguments (`REQUIRED`, etc.) and package names in
   `find_package()` are case-sensitive on Linux.** `find_package(vulkan
 required)` silently fails to work as intended — lowercase `required` isn't

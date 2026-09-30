@@ -10,6 +10,7 @@
 #include "Window.hpp"
 #include "queueFamilies.hpp"
 #include "swapchainSupport.hpp"
+#include <memory>
 
 class App {
   public:
@@ -25,24 +26,27 @@ class App {
 
   private:
     // helpers
-    static VkPhysicalDevice   pickPhysicalDevice(VkInstance instance);
-    static QueueFamilyIndices pickQueueFamilies(VkPhysicalDevice physicalDevice,
-                                                VkSurfaceKHR     surface);
-    static SwapchainSupport   pickSwapchainSupport(VkPhysicalDevice physicalDevice,
-                                                   VkSurfaceKHR     surface);
-    void                      drawFrame();
-    uint32_t                  currentFrame = 0;
-    Window                    window;
-    VulkanInstance            instance;
-    Surface                   surface;
-    VkPhysicalDevice          physicalDevice;
-    QueueFamilyIndices        indices;
-    LogicalDevice             device;
-    SwapchainSupport          support;
-    Swapchain                 swapchain;
-    SyncObjects               syncObjects;
-    Pipeline                  pipeline;
-    CommandBuffers            commandBuffers;
+    static VkPhysicalDevice         pickPhysicalDevice(VkInstance instance);
+    static QueueFamilyIndices       pickQueueFamilies(VkPhysicalDevice physicalDevice,
+                                                      VkSurfaceKHR     surface);
+    static SwapchainSupport         pickSwapchainSupport(VkPhysicalDevice physicalDevice,
+                                                         VkSurfaceKHR     surface);
+    bool                            frameBufferResized = false;
+    std::vector<VkFence>            imagesInFlight;
+    void                            recreateSwapchain();
+    void                            drawFrame();
+    uint32_t                        currentFrame = 0;
+    Window                          window;
+    VulkanInstance                  instance;
+    Surface                         surface;
+    VkPhysicalDevice                physicalDevice;
+    QueueFamilyIndices              indices;
+    LogicalDevice                   device;
+    SwapchainSupport                support;
+    std::unique_ptr<Swapchain>      swapchain;
+    std::unique_ptr<SyncObjects>    syncObjects;
+    std::unique_ptr<Pipeline>       pipeline;
+    std::unique_ptr<CommandBuffers> commandBuffers;
 };
 
 /*What does a VkFramebuffer actually do? */

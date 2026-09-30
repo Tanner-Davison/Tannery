@@ -160,7 +160,6 @@ currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT
 
 | Gap | Effect | Direction |
 |-----|--------|-----------|
-| No swapchain recreation | Resize or minimize hits `OUT_OF_DATE` / `SUBOPTIMAL` | Rebuild the swapchain, image views, and command buffers |
 | Positions hardcoded in the shader | No real geometry | Vertex buffer, then staging buffer, index buffer, and UBO with descriptor sets |
 | No depth buffer, textures, or model loading | Nothing 3D yet | Follows the vertex-buffer work |
 

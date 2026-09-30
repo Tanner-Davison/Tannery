@@ -175,15 +175,16 @@ void App::recreateSwapchain() {
     // 4. Destroy old objects, dependants first
     commandBuffers.reset();
     syncObjects.reset();
-    swapchain.reset();
-
-    // 5. Rebuild in dependancy order ( same expressions as the constructor )
-
-    swapchain = std::make_unique<Swapchain>(device.handle(),
+    auto oldSwapchain = std::move(swapchain);
+    swapchain         = std::make_unique<Swapchain>(device.handle(),
                                             surface.handle(),
                                             support,
                                             window.handle(),
-                                            indices);
+                                            indices,
+                                            oldSwapchain->handle());
+    oldSwapchain.reset();
+    // 5. Rebuild in dependancy order ( same expressions as the constructor )
+
     syncObjects =
         std::make_unique<SyncObjects>(device.handle(), swapchain->imageCountHandle());
     commandBuffers = std::make_unique<CommandBuffers>(device.handle(),

@@ -31,8 +31,17 @@
   live resizing fast and responsive. On native Wayland the window only takes its new size after the
   client commits a buffer at that size, which on this GNOME + GLFW 3.4 setup lagged about half a
   second. Tradeoff: forcing X11 makes `glfwInit` fail where no X server/XWayland exists.
-- Not done (optional): pass `oldSwapchain`, rebuild `SyncObjects` only when the image count
-  changes, skip recreation when the extent is unchanged.
+- `oldSwapchain` is implemented: `Swapchain`'s constructor takes an optional `oldSwapchain`
+  handle, and `recreateSwapchain` moves the old `unique_ptr` out, builds the new swapchain with
+  `oldSwapchain->handle()`, then destroys the old one. Leaving a second plain `make_unique`
+  below it made `vkCreateSwapchainKHR` fail (a surface can hold only one swapchain unless the old
+  one is passed in).
+- **Per-image command buffers need per-image fence tracking.** `imagesInFlight[imageIndex]` holds
+  the fence of the frame that last used each image; `drawFrame` waits on it after acquire, and it
+  is re-assigned after every recreate (the fences it points at are destroyed with `SyncObjects`).
+  Without it, validation reports `VUID-vkQueueSubmit-pCommandBuffers-00071`.
+- Not done (optional): rebuild `SyncObjects` only when the image count changes, skip recreation
+  when the extent is unchanged.
 
 ## Mistakes worth remembering
 

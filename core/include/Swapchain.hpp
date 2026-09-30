@@ -12,7 +12,8 @@ class Swapchain {
               VkSurfaceKHR              surface,
               const SwapchainSupport&   support,
               GLFWwindow*               window,
-              const QueueFamilyIndices& indices);
+              const QueueFamilyIndices& indices,
+              VkSwapchainKHR            oldSwapchain = VK_NULL_HANDLE);
 
     // Copy && move constructors deletion
     Swapchain(const Swapchain&)            = delete;

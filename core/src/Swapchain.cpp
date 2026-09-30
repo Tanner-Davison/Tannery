@@ -1,5 +1,6 @@
 #include "Swapchain.hpp"
 #include <algorithm>
+#include <format>
 #include <limits>
 #include <stdexcept>
 #include <vulkan/vulkan.h>
@@ -8,7 +9,8 @@ Swapchain::Swapchain(VkDevice                  pLogicalDevice,
                      VkSurfaceKHR              surface,
                      const SwapchainSupport&   support,
                      GLFWwindow*               pWindow,
-                     const QueueFamilyIndices& indices)
+                     const QueueFamilyIndices& indices,
+                     VkSwapchainKHR            oldSwapchain)
     : deviceHandle(pLogicalDevice) {
     this->surfaceFormat = chooseSwapSurfaceFormat(support);
     this->presentMode   = chooseSwapPresentMode(support);
@@ -59,11 +61,13 @@ Swapchain::Swapchain(VkDevice                  pLogicalDevice,
      * channel, hence VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR.*/
     createInfo.presentMode  = presentMode;
     createInfo.clipped      = VK_TRUE;
-    createInfo.oldSwapchain = VK_NULL_HANDLE;
+    createInfo.oldSwapchain = oldSwapchain;
 
-    if (vkCreateSwapchainKHR(pLogicalDevice, &createInfo, nullptr, &this->swapchain) !=
-        VK_SUCCESS) {
-        throw std::runtime_error("Error: Failed to create swapchain");
+    VkResult swapchainResult =
+        vkCreateSwapchainKHR(pLogicalDevice, &createInfo, nullptr, &this->swapchain);
+    if (swapchainResult != VK_SUCCESS) {
+        throw std::runtime_error(std::format("Failed to create Swapchain. VkResult code: {}",
+                                             (int)swapchainResult));
     }
 
     vkGetSwapchainImagesKHR(this->deviceHandle, this->swapchain, &this->imageCount, nullptr);

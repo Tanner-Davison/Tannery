@@ -857,3 +857,92 @@ signaled, or a timeout elapses.
 waits on the previous frame's fence before reusing its command buffer and
 sync objects, which is what prevents the CPU from racing ahead of the GPU
 and overwriting resources still in use.
+
+---
+
+# Added during frames-in-flight, resize, and vertex-buffer work
+
+(Appended after the alphabetical list above; VMA calls are from the Vulkan
+Memory Allocator library, not the core Vulkan API.)
+
+## vkCmdSetViewport / vkCmdSetScissor
+
+**Category:** Command recording (dynamic state)
+
+**What it does:** Sets the viewport transform and scissor rectangle for
+subsequent draws in a command buffer. Only valid when the pipeline declared
+`VK_DYNAMIC_STATE_VIEWPORT` / `VK_DYNAMIC_STATE_SCISSOR` in its
+`VkPipelineDynamicStateCreateInfo`.
+
+**Why it matters here:** Makes the pipeline independent of the window size, so
+a resize rebuilds the swapchain and command buffers but not the pipeline.
+Recorded in `CommandBuffers` after `vkCmdBindPipeline` and before `vkCmdDraw`.
+
+---
+
+## vkQueueWaitIdle
+
+**Category:** Synchronization
+
+**What it does:** Blocks the calling thread until every command submitted to
+one queue has finished executing.
+
+**Why it matters here:** Used by `copyBuffer` to wait for the one-time
+staging-to-vertex-buffer copy. Acceptable at startup; never use it per frame,
+where fences give you CPU/GPU overlap.
+
+---
+
+## vkCmdCopyBuffer
+
+**Category:** Command recording (transfer)
+
+**What it does:** Records a GPU-side copy of one or more regions from a source
+`VkBuffer` to a destination `VkBuffer`. The source needs
+`VK_BUFFER_USAGE_TRANSFER_SRC_BIT`, the destination
+`VK_BUFFER_USAGE_TRANSFER_DST_BIT`.
+
+**Why it matters here:** Moves vertex data from the CPU-visible staging buffer
+into the device-local vertex buffer in `copyBuffer`.
+
+---
+
+## vmaCreateAllocator / vmaDestroyAllocator
+
+**Category:** Memory (VMA)
+
+**What it does:** Creates and destroys the `VmaAllocator`, a long-lived object
+tied to one instance, physical device, and logical device that owns all
+device-memory blocks.
+
+**Why it matters here:** Wrapped by the `Allocator` class. It must be created
+after `LogicalDevice`, and destroyed after every `Buffer` and before the
+device, which is why it sits right after `device` in `App`'s member order.
+
+---
+
+## vmaCreateBuffer / vmaDestroyBuffer
+
+**Category:** Memory (VMA)
+
+**What it does:** `vmaCreateBuffer` creates a `VkBuffer`, chooses and
+allocates suitable memory, and binds them, replacing `vkCreateBuffer` +
+`vkGetBufferMemoryRequirements` + a memory-type search + `vkAllocateMemory` +
+`vkBindBufferMemory`. `vmaDestroyBuffer` frees both the buffer and its
+allocation.
+
+**Why it matters here:** The core of the `Buffer` class.
+`VMA_MEMORY_USAGE_AUTO` plus `HOST_ACCESS_*` flags decide CPU-visible (staging)
+versus GPU-local (vertex) memory.
+
+---
+
+## vmaCopyMemoryToAllocation
+
+**Category:** Memory (VMA)
+
+**What it does:** Copies bytes from CPU memory into a host-visible allocation
+(handles mapping, the copy, and flushing if needed).
+
+**Why it matters here:** Fills the staging buffer with the vertex array. Fails
+if the allocation wasn't created with a `HOST_ACCESS_*` flag.

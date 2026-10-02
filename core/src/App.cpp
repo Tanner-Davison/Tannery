@@ -36,15 +36,16 @@ App::App(int width, int height, const char* title)
                                      std::filesystem::path(SHADER_DIR) / "triangle.vert.spv",
                                      std::filesystem::path(SHADER_DIR) / "triangle.frag.spv",
                                      swapchain->formatHandle().format))
-    , commandBuffers(std::make_unique<CommandBuffers>(device.handle(),
-                                                      swapchain->imageViewsHandle(),
-                                                      swapchain->imagesHandle(),
-                                                      pipeline->pipelineHandle(),
-                                                      swapchain->extentHandle(),
-                                                      indices,
-                                                      vertexBuffer->handle(),
-                                                      indexBuffer->handle(),
-                                                      indexBuffer->sizeBytes())) {
+    , commandBuffers(
+          std::make_unique<CommandBuffers>(device.handle(),
+                                           swapchain->imageViewsHandle(),
+                                           swapchain->imagesHandle(),
+                                           pipeline->pipelineHandle(),
+                                           swapchain->extentHandle(),
+                                           indices,
+                                           vertexBuffer->handle(),
+                                           indexBuffer->handle(),
+                                           indexBuffer->sizeBytes() / sizeof(uint16_t))) {
     // Window Resize
     glfwSetWindowUserPointer(window.handle(), this);
     glfwSetFramebufferSizeCallback(window.handle(), [](GLFWwindow* w, int, int) {
@@ -270,14 +271,15 @@ void App::recreateSwapchain() {
 
     syncObjects =
         std::make_unique<SyncObjects>(device.handle(), swapchain->imageCountHandle());
-    commandBuffers = std::make_unique<CommandBuffers>(device.handle(),
-                                                      swapchain->imageViewsHandle(),
-                                                      swapchain->imagesHandle(),
-                                                      pipeline->pipelineHandle(),
-                                                      swapchain->extentHandle(),
-                                                      indices,
-                                                      vertexBuffer->handle(),
-                                                      indexBuffer->handle(),
-                                                      indexBuffer->sizeBytes());
+    commandBuffers =
+        std::make_unique<CommandBuffers>(device.handle(),
+                                         swapchain->imageViewsHandle(),
+                                         swapchain->imagesHandle(),
+                                         pipeline->pipelineHandle(),
+                                         swapchain->extentHandle(),
+                                         indices,
+                                         vertexBuffer->handle(),
+                                         indexBuffer->handle(),
+                                         indexBuffer->sizeBytes() / sizeof(uint16_t));
     imagesInFlight.assign(swapchain->imageCountHandle(), VK_NULL_HANDLE);
 }

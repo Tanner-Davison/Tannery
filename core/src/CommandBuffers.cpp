@@ -9,9 +9,7 @@ CommandBuffers::CommandBuffers(VkDevice                        pDevice,
                                VkPipeline                      pPipeline,
                                VkExtent2D                      extent,
                                const QueueFamilyIndices&       indices,
-                               VkBuffer                        pVertexBuffer,
-                               VkBuffer                        pIndexBuffer,
-                               uint32_t                        pIndexCount)
+                               const Mesh&                     mesh)
     : device(pDevice) {
     VkCommandPoolCreateInfo commandPoolInfo{};
     commandPoolInfo.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -90,16 +88,19 @@ CommandBuffers::CommandBuffers(VkDevice                        pDevice,
         renderingInfo.pColorAttachments    = &colorAttachment;
         vkCmdBeginRendering(commandBuffers[i], &renderingInfo);
         vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pPipeline);
-        VkBuffer     vertexBuffers[] = {pVertexBuffer};
+        VkBuffer     vertexBuffers[] = {mesh.vertexBufferHandle()};
         VkDeviceSize offsets[]       = {0};
         vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffers[i], pIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindIndexBuffer(commandBuffers[i],
+                             mesh.indexBufferHandle(),
+                             0,
+                             VK_INDEX_TYPE_UINT16);
         VkViewport viewport{0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f};
         VkRect2D   scissor{{0, 0}, extent};
         vkCmdSetViewport(commandBuffers[i], 0, 1, &viewport);
         vkCmdSetScissor(commandBuffers[i], 0, 1, &scissor);
         // index count, instance count, firstIndex, vertexOffset, firstInstance
-        vkCmdDrawIndexed(commandBuffers[i], pIndexCount, 1, 0, 0, 0);
+        vkCmdDrawIndexed(commandBuffers[i], mesh.indexCount(), 1, 0, 0, 0);
         vkCmdEndRendering(commandBuffers[i]);
 
         VkImageMemoryBarrier barrierAfter{};

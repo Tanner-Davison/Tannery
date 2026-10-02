@@ -1,4 +1,5 @@
 #pragma once
+#include "Mesh.hpp"
 #include "queueFamilies.hpp"
 #include <vector>
 #include <vulkan/vulkan.h>
@@ -11,9 +12,7 @@ class CommandBuffers {
                    VkPipeline                      pPipeline,
                    VkExtent2D                      extent,
                    const QueueFamilyIndices&       indices,
-                   VkBuffer                        pVertexBuffer,
-                   VkBuffer                        pIndexBuffer,
-                   uint32_t                        pIndexCount);
+                   const Mesh&                     mesh);
 
     ~CommandBuffers();
 

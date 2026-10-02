@@ -32,7 +32,10 @@ set(SOURCES
     core/src/vma.cpp
     core/src/Allocator.cpp
     core/src/Buffer.cpp
-    core/src/copyBuffer.cpp)
+    core/src/copyBuffer.cpp
+    core/src/GraphicsContext.cpp
+    core/src/Mesh.cpp
+    core/src/Renderer.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 

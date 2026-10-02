@@ -961,3 +961,34 @@ pipeline's vertex input state.
 **Why it matters here:** Recorded in `CommandBuffers` after `vkCmdBindPipeline`
 and before `vkCmdDraw`, so the vertex shader reads real positions and colors
 from the GPU-local vertex buffer instead of a hardcoded array.
+
+---
+
+## vkCmdBindIndexBuffer
+
+**Category:** Command recording
+
+**What it does:** Binds a `VkBuffer` as the source of indices for subsequent
+indexed draws, with a byte offset and an index type
+(`VK_INDEX_TYPE_UINT16` / `UINT32`). The type must match the real type of the
+data in the buffer, and Vulkan does not check that for you.
+
+**Why it matters here:** Recorded in `CommandBuffers` after
+`vkCmdBindVertexBuffers`, so the quad's 4 vertices can be reused by 2
+triangles.
+
+---
+
+## vkCmdDrawIndexed
+
+**Category:** Command recording
+
+**What it does:** Draws primitives by reading `indexCount` indices (starting at
+`firstIndex`) from the bound index buffer and using each as a vertex lookup.
+Parameters: `indexCount, instanceCount, firstIndex, vertexOffset, firstInstance`.
+
+**Why it matters here:** Replaces `vkCmdDraw`. The count is a number of
+**indices**, not bytes: passing the buffer's byte size (12) instead of 6 made
+the draw read past the end of the buffer, which validation caught
+(`VUID-vkCmdDrawIndexed-robustBufferAccess2-08798`) even though the image
+looked correct.

@@ -22,7 +22,7 @@ struct Vertex {
 
     // Input attribute description is {location, binding, format,  offset}
     // R32G32_SFLOAT means 'two 32-bit floats'
-    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescription() {
         std::array<VkVertexInputAttributeDescription, 2> attrs{};
         attrs[0] = {0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, pos)};
         attrs[1] = {1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)};

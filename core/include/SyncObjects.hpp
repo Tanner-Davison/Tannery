@@ -16,7 +16,7 @@ class SyncObjects {
     VkFence      getFence(uint32_t currentFrameIndex) const;
     ~SyncObjects();
 
-    static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
+    static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 3;
 
   private:
     VkDevice                 device = VK_NULL_HANDLE;

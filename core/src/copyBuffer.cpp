@@ -1,7 +1,7 @@
 #include "copyBuffer.hpp"
+#include "vk_enum_string_helper.h"
 #include <format>
 #include <stdexcept>
-#include <vk_enum_string_helper.h>
 
 namespace {
 // Destroys the temporary pool when the function exists, even if it throws
@@ -67,6 +67,10 @@ void copyBuffer(VkDevice     pDevice,
     submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers    = &cmd;
-    vkQueueSubmit(pQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    res                           = vkQueueSubmit(pQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error(
+            std::format("Failed to submit queue. VKError: {}", string_VkResult(res)));
+    }
     vkQueueWaitIdle(pQueue);
 };

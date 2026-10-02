@@ -37,7 +37,18 @@ class App {
                                                       VkDevice     pDevice,
                                                       VkQueue      pQueue,
                                                       uint32_t     pQueueFamilyIndex);
-    bool                           frameBufferResized = false;
+    static std::unique_ptr<Buffer> createDeviceLocalBuffer(VmaAllocator pAllocator,
+                                                           VkDevice     pDevice,
+                                                           VkQueue      pQueue,
+                                                           uint32_t     pQueueFamilyIndex,
+                                                           const void*  pData,
+                                                           VkDeviceSize pSize,
+                                                           VkBufferUsageFlags pUsage);
+    static std::unique_ptr<Buffer> createIndexBuffer(VmaAllocator pAllocator,
+                                                     VkDevice     pDevice,
+                                                     VkQueue      pQueue,
+                                                     uint32_t     pQueueFamilyIndex);
+    bool                           framebufferResized = false;
     std::vector<VkFence>           imagesInFlight;
     void                           recreateSwapchain();
     void                           drawFrame();
@@ -51,25 +62,10 @@ class App {
     LogicalDevice                   device;
     Allocator                       allocator;
     std::unique_ptr<Buffer>         vertexBuffer;
+    std::unique_ptr<Buffer>         indexBuffer;
     SwapchainSupport                support;
     std::unique_ptr<Swapchain>      swapchain;
     std::unique_ptr<SyncObjects>    syncObjects;
     std::unique_ptr<Pipeline>       pipeline;
     std::unique_ptr<CommandBuffers> commandBuffers;
 };
-
-/*What does a VkFramebuffer actually do? */
-
-/* 1. Binds Real Memory to Shaders: Shaders output data to attachment index 0, 1, etc. The
- * VkFramebuffer ensures that index 0 points to a real memory allocation (like a swapchain
- * image).
- *
- * 2. Defines the Render Canvas Dimensions: When creating a VkFramebufferCreateInfo, you
- * explicitly supply the width, height, and layers. This dictates the execution boundaries of
- * your drawing operations.
- *
- * 3. Facilitates Multiple Buffering (Swapchains): Because a swapchain
- * gives you multiple images to prevent screen tearing, you typically have to create an array
- * of VkFramebuffer objects—one for every single image in your swapchain. When rendering a
- * frame, you look up the active swapchain image index and bind the corresponding VkFramebuffer
- */

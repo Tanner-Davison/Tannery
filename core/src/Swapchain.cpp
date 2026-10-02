@@ -1,9 +1,9 @@
 #include "Swapchain.hpp"
+#include "vk_enum_string_helper.h"
 #include <algorithm>
 #include <format>
 #include <limits>
 #include <stdexcept>
-#include <vk_enum_string_helper.h>
 #include <vulkan/vulkan.h>
 
 Swapchain::Swapchain(VkDevice                  pLogicalDevice,
@@ -79,6 +79,8 @@ Swapchain::Swapchain(VkDevice                  pLogicalDevice,
                             this->swapchain,
                             &imageCount,
                             this->images.data());
+    // Get Images count printed:
+    // std::println("Images count: {}", imageCount);
 
     VkImageViewCreateInfo createImageViewInfo{};
     createImageViewInfo.sType                       = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;

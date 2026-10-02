@@ -1,7 +1,7 @@
 #include "Buffer.hpp"
+#include "vk_enum_string_helper.h"
 #include <format>
 #include <stdexcept>
-#include <vk_enum_string_helper.h>
 
 Buffer::Buffer(VmaAllocator             pAllocator,
                VkDeviceSize             pSize,

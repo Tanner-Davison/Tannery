@@ -1,9 +1,9 @@
 #include "Pipeline.hpp"
 #include "Vertex.hpp"
 #include "shaderModule.hpp"
+#include "vk_enum_string_helper.h"
 #include <format>
 #include <stdexcept>
-#include <vk_enum_string_helper.h>
 
 /* SHADER MODULE SCOPED GUARD */
 namespace {
@@ -56,7 +56,7 @@ Pipeline::Pipeline(VkDevice                     pDevice,
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertStageInfo, fragStageInfo};
 
     auto                                 binding = Vertex::getBindingDescription();
-    auto                                 attrs   = Vertex::getAttributeDescriptions();
+    auto                                 attrs   = Vertex::getAttributeDescription();
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount   = 1;

@@ -1,8 +1,8 @@
 #include "SyncObjects.hpp"
+#include "vk_enum_string_helper.h"
 #include <format>
 #include <stdexcept>
 #include <vector>
-#include <vk_enum_string_helper.h>
 
 namespace {
 struct SemaphoreModuleGuard {

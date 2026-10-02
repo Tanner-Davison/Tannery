@@ -1,6 +1,7 @@
 #include "App.hpp"
 #include "copyBuffer.hpp"
 #include "physicalDevice.hpp"
+#include "vk_enum_string_helper.h"
 #include <filesystem>
 #include <memory>
 #include <stdexcept>
@@ -17,6 +18,10 @@ App::App(int width, int height, const char* title)
                                       device.handle(),
                                       device.GraphicsQueueHandle(),
                                       indices.graphicsFamilyIndex.value()))
+    , indexBuffer(createIndexBuffer(allocator.handle(),
+                                    this->device.handle(),
+                                    device.GraphicsQueueHandle(),
+                                    indices.graphicsFamilyIndex.value()))
     , support(pickSwapchainSupport(physicalDevice, surface.handle()))
     , swapchain(std::make_unique<Swapchain>(device.handle(),
                                             surface.handle(),
@@ -37,12 +42,14 @@ App::App(int width, int height, const char* title)
                                                       pipeline->pipelineHandle(),
                                                       swapchain->extentHandle(),
                                                       indices,
-                                                      vertexBuffer->handle())) {
+                                                      vertexBuffer->handle(),
+                                                      indexBuffer->handle(),
+                                                      indexBuffer->sizeBytes())) {
     // Window Resize
     glfwSetWindowUserPointer(window.handle(), this);
     glfwSetFramebufferSizeCallback(window.handle(), [](GLFWwindow* w, int, int) {
         auto* app               = static_cast<App*>(glfwGetWindowUserPointer(w));
-        app->frameBufferResized = true;
+        app->framebufferResized = true;
     });
 
     imagesInFlight.assign(swapchain->imageCountHandle(), VK_NULL_HANDLE);
@@ -75,66 +82,99 @@ SwapchainSupport App::pickSwapchainSupport(VkPhysicalDevice physicalDevice,
     return support;
 }
 
-std::unique_ptr<Buffer> App::createVertexBuffer(VmaAllocator pAllocator,
-                                                VkDevice     pDevice,
-                                                VkQueue      pQueue,
-                                                uint32_t     pQueueFamilyIndex) {
-    const std::vector<Vertex> vertices = {
-        {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-    };
-    const VkDeviceSize size = sizeof(Vertex) * vertices.size();
+std::unique_ptr<Buffer> App::createDeviceLocalBuffer(VmaAllocator       pAllocator,
+                                                     VkDevice           pDevice,
+                                                     VkQueue            pQueue,
+                                                     uint32_t           pQueueFamilyIndex,
+                                                     const void*        pData,
+                                                     VkDeviceSize       pSize,
+                                                     VkBufferUsageFlags pUsage) {
     // 1. CPU-Visible staging buffer, filled with vertices
     Buffer staging(pAllocator,
-                   size,
+                   pSize,
                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
-    vmaCopyMemoryToAllocation(pAllocator,
-                              vertices.data(),
-                              staging.allocationHandle(),
-                              0,
-                              size);
-    // 2. GPU-local vertex buffer
-    auto vertexBuffer = std::make_unique<Buffer>(
-        pAllocator,
-        size,
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        0);
+    vmaCopyMemoryToAllocation(pAllocator, pData, staging.allocationHandle(), 0, pSize);
+
+    // 2. GPU-local device buffer data
+    auto vertexBuffer = std::make_unique<Buffer>(pAllocator,
+                                                 pSize,
+                                                 pUsage | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                                 0);
     // 3. copy staging into it and wait
     copyBuffer(pDevice,
                pQueue,
                pQueueFamilyIndex,
                staging.handle(),
                vertexBuffer->handle(),
-               size);
+               pSize);
     return vertexBuffer;
 };
 
+std::unique_ptr<Buffer> App::createVertexBuffer(VmaAllocator pAllocator,
+                                                VkDevice     pDevice,
+                                                VkQueue      pQueue,
+                                                uint32_t     pQueueFamilyIndex) {
+    // First triangle( 0 -> 1 -> 2 )
+    // Second triangle ( 2 -> 3 -> 0 )
+    const std::vector<Vertex> vertices = {
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // 0 top-left, red
+        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},  // 1 top-right, green
+        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},   // 2 bottom-right, blue
+        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}},  // 3 bottom-left, white
+    };
+    const VkDeviceSize size = sizeof(Vertex) * vertices.size();
+    return createDeviceLocalBuffer(pAllocator,
+                                   pDevice,
+                                   pQueue,
+                                   pQueueFamilyIndex,
+                                   vertices.data(),
+                                   size,
+                                   VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+};
+
+std::unique_ptr<Buffer> App::createIndexBuffer(VmaAllocator pAllocator,
+                                               VkDevice     pDevice,
+                                               VkQueue      pQueue,
+                                               uint32_t     pQueueFamilyIndex) {
+    const std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0};
+    const VkDeviceSize          size    = sizeof(uint16_t) * indices.size();
+    return createDeviceLocalBuffer(pAllocator,
+                                   pDevice,
+                                   pQueue,
+                                   pQueueFamilyIndex,
+                                   indices.data(),
+                                   size,
+                                   VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+};
+
 void App::drawFrame() {
-    if (frameBufferResized) {
-        frameBufferResized = false;
+    if (framebufferResized) {
+        framebufferResized = false;
         recreateSwapchain();
     }
     VkFence fence = syncObjects->getFence(currentFrame);
 
-    vkWaitForFences(this->device.handle(), 1, &fence, VK_TRUE, UINT64_MAX);
+    VkResult res = vkWaitForFences(this->device.handle(), 1, &fence, VK_TRUE, UINT64_MAX);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error(
+            std::format("vkWaitForFences Failed. VkError: {}", string_VkResult(res)));
+    }
 
     uint32_t imageIndex;
 
-    VkResult result =
-        vkAcquireNextImageKHR(this->device.handle(),
-                              swapchain->handle(),
-                              UINT64_MAX,
-                              syncObjects->getImageAvailableSemaphore(currentFrame),
-                              VK_NULL_HANDLE,
-                              &imageIndex);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+    res = vkAcquireNextImageKHR(this->device.handle(),
+                                swapchain->handle(),
+                                UINT64_MAX,
+                                syncObjects->getImageAvailableSemaphore(currentFrame),
+                                VK_NULL_HANDLE,
+                                &imageIndex);
+    if (res == VK_ERROR_OUT_OF_DATE_KHR) {
         recreateSwapchain();
         return;
     }
 
-    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+    if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR) {
         throw std::runtime_error("Failed to acquire swapchain image");
     }
     if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
@@ -172,13 +212,14 @@ void App::drawFrame() {
     presentInfo.pImageIndices      = &imageIndex;
     presentInfo.pResults           = nullptr;
 
-    VkResult presentResult = vkQueuePresentKHR(device.PresentQueueHandle(), &presentInfo);
+    res = vkQueuePresentKHR(device.PresentQueueHandle(), &presentInfo);
 
     // RESIZE CALLBACK------------
-    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR ||
-        frameBufferResized) {
-        frameBufferResized = false;
+    if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
         recreateSwapchain();
+    } else if (res != VK_SUCCESS) {
+        throw std::runtime_error(
+            std::format("failed to QueuePresentKHR. VKError: {}", string_VkResult(res)));
     }
     //-----------------------------
 
@@ -235,6 +276,8 @@ void App::recreateSwapchain() {
                                                       pipeline->pipelineHandle(),
                                                       swapchain->extentHandle(),
                                                       indices,
-                                                      vertexBuffer->handle());
+                                                      vertexBuffer->handle(),
+                                                      indexBuffer->handle(),
+                                                      indexBuffer->sizeBytes());
     imagesInFlight.assign(swapchain->imageCountHandle(), VK_NULL_HANDLE);
 }

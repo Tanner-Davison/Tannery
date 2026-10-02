@@ -1,43 +1,44 @@
 #include "CommandBuffers.hpp"
+#include "vk_enum_string_helper.h"
 #include <format>
 #include <stdexcept>
-#include <vk_enum_string_helper.h>
 
-CommandBuffers::CommandBuffers(VkDevice                 pDevice,
-                               std::vector<VkImageView> pImageViews,
-                               std::vector<VkImage>     pImages,
-                               VkPipeline               pPipeline,
-                               VkExtent2D               extent,
-                               const QueueFamilyIndices indices,
-                               VkBuffer                 pVertexBuffer)
+CommandBuffers::CommandBuffers(VkDevice                        pDevice,
+                               const std::vector<VkImageView>& pImageViews,
+                               const std::vector<VkImage>&     pImages,
+                               VkPipeline                      pPipeline,
+                               VkExtent2D                      extent,
+                               const QueueFamilyIndices&       indices,
+                               VkBuffer                        pVertexBuffer,
+                               VkBuffer                        pIndexBuffer,
+                               uint32_t                        pIndexCount)
     : device(pDevice) {
     VkCommandPoolCreateInfo commandPoolInfo{};
     commandPoolInfo.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     commandPoolInfo.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     commandPoolInfo.queueFamilyIndex = indices.graphicsFamilyIndex.value();
-    // CREATE COMMAND POOL
-    //
-    VkResult poolCreationRes(
-        vkCreateCommandPool(this->device, &commandPoolInfo, nullptr, &commandPool));
 
-    if (poolCreationRes != VK_SUCCESS) {
-        throw std::runtime_error(std::format("Failed to create command pool. VkError: {}",
-                                             string_VkResult(poolCreationRes)));
+    // CREATE COMMAND POOL
+    VkResult res(vkCreateCommandPool(this->device, &commandPoolInfo, nullptr, &commandPool));
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error(
+            std::format("Failed to create command pool. VkError: {}", string_VkResult(res)));
     }
-    // Resize the buffer pool to match # of imageViews
+
     commandBuffers.resize(pImageViews.size());
+
     // ALLocate Command Buffers
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool        = this->commandPool;
     allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
-    VkResult checkAllocated(
-        vkAllocateCommandBuffers(this->device, &allocInfo, this->commandBuffers.data()));
-    if (checkAllocated != VK_SUCCESS) {
+
+    res = vkAllocateCommandBuffers(this->device, &allocInfo, this->commandBuffers.data());
+    if (res != VK_SUCCESS) {
         throw std::runtime_error(
             std::format("Failed to Allocate Command  Buffers. VkError: {}",
-                        string_VkResult(checkAllocated)));
+                        string_VkResult(res)));
     }
 
     constexpr uint32_t     VERTEXCOUNT{3}, INSTANCECOUNT{1}, FIRSTVERTEX{0}, FIRSTINSTANCE{0};
@@ -92,11 +93,13 @@ CommandBuffers::CommandBuffers(VkDevice                 pDevice,
         VkBuffer     vertexBuffers[] = {pVertexBuffer};
         VkDeviceSize offsets[]       = {0};
         vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffers[i], pIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
         VkViewport viewport{0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f};
         VkRect2D   scissor{{0, 0}, extent};
         vkCmdSetViewport(commandBuffers[i], 0, 1, &viewport);
         vkCmdSetScissor(commandBuffers[i], 0, 1, &scissor);
-        vkCmdDraw(commandBuffers[i], VERTEXCOUNT, INSTANCECOUNT, FIRSTVERTEX, FIRSTINSTANCE);
+        // index count, instance count, firstIndex, vertexOffset, firstInstance
+        vkCmdDrawIndexed(commandBuffers[i], pIndexCount, 1, 0, 0, 0);
         vkCmdEndRendering(commandBuffers[i]);
 
         VkImageMemoryBarrier barrierAfter{};

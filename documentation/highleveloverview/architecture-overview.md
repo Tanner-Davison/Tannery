@@ -2,161 +2,138 @@
 
 Quick reference: what each component is, what it owns, and what it depends on.
 For the *why* behind decisions and the bugs hit along the way, see
-[`../project-notes.md`](../project-notes.md).
+[`../project-notes.md`](../project-notes.md). For how the layers were split out of the
+original single `App` class, see [`../architecture-refactor.md`](../architecture-refactor.md).
 
 ---
 
-## 1. Big picture
-
-`main()` builds one `App`. `App` owns every other object as a member field.
-Each Vulkan-owning class follows the same RAII shape:
-
-- **Constructor** creates the handle, or `throw`s `std::runtime_error`.
-- **Destructor** destroys it (null-checked).
-- **Copy and move** are all `= delete`d, since each object owns a unique GPU resource.
-
-`App` declares its members in dependency order. C++ constructs in declaration
-order and destroys in reverse, so teardown order is correct automatically.
+## 1. Big picture: three layers and a resource
 
 ```
-Window → VulkanInstance → Surface → (physicalDevice, indices) → LogicalDevice
-       → (support) → Swapchain → SyncObjects → Pipeline → CommandBuffers
+ App                      "the program": window, main loop, resize callback
+  │ uses
+  ▼
+ Renderer                 "how to draw a frame": swapchain, per-frame sync, pipeline,
+  │                        command buffers, drawFrame, resize handling
+  │ uses
+  ▼
+ GraphicsContext          "the GPU": instance, surface, device, queues, allocator
+  │ uses                   (lives for the whole program)
+  ▼
+ Vulkan / GLFW / VMA
+
+ Mesh                     a resource: vertex buffer + index buffer + index count
+                          (created through GraphicsContext, drawn by Renderer)
 ```
 
-Each layer depends only on things above it.
+**Dependency rule:** arrows only point down. `GraphicsContext` never knows a `Renderer`
+exists, and `Renderer` never knows about `App`. This is what lets one layer change without
+touching the others.
+
+**Ownership in `App`** (declaration order is the dependency order; destroyed in reverse):
+
+```cpp
+Window          window;     // first created, last destroyed
+GraphicsContext context;    // GPU setup, whole-program lifetime
+Mesh            mesh;       // needs the context's allocator; must outlive the renderer's frames
+Renderer        renderer;   // borrows context, window, mesh; rebuilt parts live inside it
+```
+
+Each Vulkan-owning class follows the same RAII shape: the constructor creates the handle or
+`throw`s `std::runtime_error`; the destructor destroys it (null-checked); copy and move are
+`= delete`d, since each object owns a unique GPU resource.
 
 ---
 
-## 2. Dependency chain at a glance
+## 2. Components at a glance
 
-| # | Component | Kind | Owns | Depends on |
-|---|-----------|------|------|------------|
-| 1 | `Window` | RAII class | `GLFWwindow*` | (nothing) |
-| 2 | `VulkanInstance` | RAII class | `VkInstance`, `VkDebugUtilsMessengerEXT` | (nothing) |
-| 3 | `Surface` | RAII class | `VkSurfaceKHR` | Instance, Window |
-| 4 | Physical device selection | free function | (nothing, hardware is enumerated) | Instance |
-| 5 | Queue families | free function + struct | (nothing, query result) | Physical device, Surface |
-| 6 | `LogicalDevice` | RAII class | `VkDevice`, graphics and present `VkQueue` | Physical device, Queue families |
-| 7 | Swapchain support | free function + struct | (nothing, query result) | Physical device, Surface |
-| 8 | `Swapchain` | RAII class | `VkSwapchainKHR`, image views | Device, Surface, Support, Window |
-| 9 | `SyncObjects` | RAII class | semaphores, fence | Device, Swapchain image count |
-| 10 | `Pipeline` | RAII class | `VkPipeline`, `VkPipelineLayout` | Device, Swapchain extent and format, SPIR-V shaders |
-| 11 | `CommandBuffers` | RAII class | `VkCommandPool`, `VkCommandBuffer`s | Device, Swapchain images and views, Pipeline |
-| 12 | `App::drawFrame()` | method | (nothing) | All of the above |
-| + | `Allocator` | RAII class | `VmaAllocator` (Vulkan Memory Allocator) | Instance, Physical device, Device |
-| + | `Buffer` | RAII class | `VkBuffer` + `VmaAllocation` | Allocator |
-| + | `Vertex` | header-only struct | (nothing) | GLM; describes vertex layout for `Pipeline` |
-| + | `copyBuffer` | free function | (nothing; temporary pool) | Device, graphics queue |
-
-`App` also holds the swapchain-dependent members (`Swapchain`, `SyncObjects`, `Pipeline`,
-`CommandBuffers`) as `std::unique_ptr`s so `recreateSwapchain()` can rebuild them on resize. The
-`Allocator` is declared right after `LogicalDevice`, and `vertexBuffer` after the `Allocator`.
+| Layer | Component | Kind | Owns | Depends on |
+|---|---|---|---|---|
+| App | `App` | class | `Window`, `GraphicsContext`, `Mesh`, `Renderer` | (top) |
+| Platform | `Window` | RAII class | `GLFWwindow*` | (nothing) |
+| Renderer | `Renderer` | class | `Swapchain`, `SyncObjects`, `Pipeline`, `CommandBuffers` (as `unique_ptr`s), `imagesInFlight`, `currentFrame` | `GraphicsContext`, `Window`, `Mesh` |
+| Context | `GraphicsContext` | class | `VulkanInstance`, `Surface`, physical device, `QueueFamilyIndices`, `LogicalDevice`, `Allocator` | `Window` (for the surface) |
+| Context | `VulkanInstance` | RAII class | `VkInstance`, debug messenger | (nothing) |
+| Context | `Surface` | RAII class | `VkSurfaceKHR` | Instance, Window |
+| Context | `LogicalDevice` | RAII class | `VkDevice`, graphics and present `VkQueue` | Physical device, Queue families |
+| Context | `Allocator` | RAII class | `VmaAllocator` | Instance, Physical device, Device |
+| Resource | `Mesh` | class | vertex `Buffer`, index `Buffer`, index count | `GraphicsContext`, `Vertex` |
+| Resource | `Buffer` | RAII class | `VkBuffer` + `VmaAllocation` | Allocator |
+| Renderer | `Swapchain` | RAII class | `VkSwapchainKHR`, image views | Device, Surface, Support, Window |
+| Renderer | `SyncObjects` | RAII class | semaphores, fences | Device, Swapchain image count |
+| Renderer | `Pipeline` | RAII class | `VkPipeline`, `VkPipelineLayout` | Device, Swapchain extent and format, SPIR-V shaders, `Vertex` |
+| Renderer | `CommandBuffers` | RAII class | `VkCommandPool`, `VkCommandBuffer`s | Device, Swapchain images/views, Pipeline, Mesh |
+| Helpers | `physicalDevice`, `queueFamilies`, `swapchainSupport`, `shaderModule`, `copyBuffer` | free functions | (nothing) | various |
+| Helpers | `Vertex` | header-only struct | (nothing) | GLM; vertex layout descriptions |
 
 ---
 
 ## 3. Component reference
 
-### 1. `Window` — `Window.hpp/.cpp`
-**Responsibility:** create and destroy the OS window through GLFW.
-- Initializes GLFW, creates a `GLFWwindow*` with no client API (`GLFW_NO_API`), since Vulkan draws to it and not OpenGL.
-- Exposes `handle()` for the surface and for framebuffer-size queries.
-- The first member of `App`, so it is created first and destroyed last.
+### App — `App.hpp/.cpp` (about 35 lines)
+**Responsibility:** the program itself, and nothing about Vulkan.
+- Owns the `Window`, `GraphicsContext`, `Mesh`, and `Renderer`.
+- Defines the quad's vertices and indices, builds the `Mesh` from them.
+- Registers the GLFW framebuffer-size callback and forwards it to `Renderer::onFramebufferResized()`.
+- `run()` loops on `glfwPollEvents()` and `renderer.drawFrame()`, then `context.waitIdle()` before destructors run.
 
-### 2. `VulkanInstance` — `VulkanInstance.hpp/.cpp`
-**Responsibility:** the Vulkan library's entry point for this process.
-- Builds `VkApplicationInfo` and `VkInstanceCreateInfo`, requesting Vulkan 1.3.
-- Enables the instance extensions GLFW requires for windowing.
-- Enables `VK_LAYER_KHRONOS_validation` and the `VK_EXT_debug_utils` messenger (`debugCallbackVulkan.hpp`), which routes validation messages to our callback.
-- Has Apple-only portability extensions behind `#ifdef __APPLE__`.
+### GraphicsContext — `GraphicsContext.hpp/.cpp`
+**Responsibility:** everything about the GPU that lives for the whole program and does not depend on the window size.
+- Creates, in dependency order: `VulkanInstance` → `Surface` → physical device → queue families → `LogicalDevice` → `Allocator`.
+- Exposes handles through accessors (`deviceHandle()`, `graphicsQueue()`, `allocatorHandle()`, `queueFamilies()`, ...).
+- `createDeviceLocalBuffer(data, size, usage)`: the staging-upload path (CPU-visible staging `Buffer` filled with `vmaCopyMemoryToAllocation`, GPU-local destination `Buffer`, `copyBuffer` with a wait, staging destroyed on return).
+- `waitIdle()` wraps `vkDeviceWaitIdle`.
 
-### 3. `Surface` — `Surface.hpp/.cpp`
-**Responsibility:** the link between Vulkan and the window (`VkSurfaceKHR`).
-- Wraps `glfwCreateWindowSurface`, so the app never branches on platform (Wayland here).
-- Stores the `VkInstance` only so it can destroy the surface.
+### Mesh — `Mesh.hpp/.cpp`
+**Responsibility:** one drawable shape on the GPU.
+- Holds a vertex `Buffer`, an index `Buffer`, and `indexCount()` (taken from `indices.size()`, so the count travels with the data).
+- Uploads through `GraphicsContext::createDeviceLocalBuffer`; rejects empty data.
 
-### 4. Physical device selection — `physicalDevice.hpp/.cpp`
-**Responsibility:** pick which GPU to use.
-- `getPhysicalDevice(instance)` enumerates hardware with `vkEnumeratePhysicalDevices` (count-then-array).
-- Not an RAII class, because a `VkPhysicalDevice` is enumerated hardware and is never created or destroyed by the app.
-- Currently the RTX 3090.
+### Renderer — `Renderer.hpp/.cpp`
+**Responsibility:** turning a `Mesh` into frames, and surviving resizes.
+- Owns everything that depends on the swapchain, held as `unique_ptr`s so `recreateSwapchain()` can rebuild them.
+- `drawFrame()`: the per-frame sequence (see section 4), with every `VkResult` checked.
+- `recreateSwapchain()`: wait out a 0x0 framebuffer, `waitIdle`, re-query `SwapchainSupport`, reset dependents, build the new swapchain with `oldSwapchain`, rebuild sync objects and command buffers, reset `imagesInFlight`. The pipeline survives because viewport and scissor are dynamic state.
+- `buildCommandBuffers()`: the single place that knows how to construct `CommandBuffers` (startup and resize).
+- `imagesInFlight[imageIndex]` holds the fence of the frame that last used each swapchain image, because the command buffers are per-image.
 
-### 5. Queue families — `queueFamilies.hpp/.cpp`
-**Responsibility:** find which queue families can do graphics and present.
-- `QueueFamilyIndices` holds `std::optional<uint32_t>` for the graphics and present family indices, plus `isComplete()`.
-- `findQueueFamilies` queries `vkGetPhysicalDeviceQueueFamilyProperties` and `vkGetPhysicalDeviceSurfaceSupportKHR`.
-- The two indices may be equal (they are on this GPU) or different on other hardware, so the code never assumes either.
+### Window — `Window.hpp/.cpp`
+- Initializes GLFW (forcing X11 via `glfwInitHint` on Linux for smooth resizing; see project notes), creates a `GLFWwindow*` with no client API, enables resizing and `GLFW_SCALE_TO_MONITOR`.
 
-### 6. `LogicalDevice` — `LogicalDevice.hpp/.cpp`
-**Responsibility:** the live handle (`VkDevice`) that all GPU work goes through.
-- Creates one `VkDeviceQueueCreateInfo` per *unique* queue family, using a `std::set` because Vulkan forbids duplicates.
-- Enables the `VK_KHR_swapchain` device extension.
-- Chains `VkPhysicalDeviceDynamicRenderingFeatures` (`dynamicRendering = VK_TRUE`) onto `pNext`, which is what allows `vkCmdBeginRendering`.
-- Fetches and exposes `GraphicsQueueHandle()` and `PresentQueueHandle()`.
+### VulkanInstance, Surface, LogicalDevice, Allocator, Buffer
+- **VulkanInstance:** Vulkan 1.3 instance, GLFW's required extensions, validation layer and debug messenger. Apple portability extensions behind `#ifdef __APPLE__`.
+- **Surface:** wraps `glfwCreateWindowSurface`.
+- **LogicalDevice:** one `VkDeviceQueueCreateInfo` per unique queue family; `VK_KHR_swapchain`; dynamic rendering feature chained on `pNext`.
+- **Allocator:** `vmaCreateAllocator`/`vmaDestroyAllocator` (`vma.cpp` is the only translation unit with `VMA_IMPLEMENTATION`).
+- **Buffer:** `vmaCreateBuffer`/`vmaDestroyBuffer` with usage and VMA allocation flags passed in.
 
-### 7. Swapchain support — `swapchainSupport.hpp/.cpp`
-**Responsibility:** ask what the surface and GPU pair can do before creating a swapchain.
-- `SwapchainSupport` holds capabilities (a single struct), formats, and present modes (both arrays), plus `isComplete()`.
-- `getSwapchainSupportDetails` fills it.
-- A query result only, so it is not RAII.
+### Swapchain, SyncObjects
+- **Swapchain:** chooses format (`B8G8R8A8_SRGB`), present mode (`MAILBOX`, fallback `FIFO`) and extent; takes an optional `oldSwapchain`; owns its image views.
+- **SyncObjects:** `MAX_FRAMES_IN_FLIGHT` (2, `public static constexpr`). Per frame slot (`currentFrame`): a fence (created signaled) and an image-available semaphore. Per swapchain image (`imageIndex`): a render-complete semaphore.
 
-### 8. `Swapchain` — `Swapchain.hpp/.cpp`
-**Responsibility:** the queue of images that get presented to the window.
-- Chooses settings from the support data:
-  - **Format:** prefers `B8G8R8A8_SRGB` with `SRGB_NONLINEAR`.
-  - **Present mode:** prefers `MAILBOX`, falls back to `FIFO` (guaranteed to exist).
-  - **Extent:** uses the surface's extent, or clamps the GLFW framebuffer size when the surface says "you choose".
-- Creates the `VkSwapchainKHR`, using `EXCLUSIVE` sharing when the graphics and present families match and `CONCURRENT` otherwise.
-- Retrieves the `VkImage`s (owned by the swapchain) and creates and owns one `VkImageView` per image.
-- Exposes format, extent, image count, images, and image views for later stages.
+### Pipeline
+- Loads SPIR-V, configures fixed-function state, and takes its vertex layout from `Vertex`. Viewport and scissor are dynamic state, so the pipeline does not depend on the window size. Dynamic rendering: attachment format via `VkPipelineRenderingCreateInfo`, no render pass.
+- **Pipelines are baked:** changing shaders, vertex layout, topology, rasterizer or blend state means a different pipeline.
 
-### 9. `SyncObjects` — `SyncObjects.hpp/.cpp`
-**Responsibility:** CPU-GPU and GPU-GPU synchronization for the render loop.
-- `MAX_FRAMES_IN_FLIGHT` (2) is a `public static constexpr`, shared with `App`.
-- **Per frame slot** (indexed by `currentFrame`): one `VkFence` (created **signaled**, so the first wait doesn't block forever) and one image-available semaphore. The fence proves the slot's previous submit finished, which also proves its semaphore is free to signal again.
-- **Per swapchain image** (indexed by `imageIndex`): one render-complete semaphore. The presentation engine waits on it and the CPU can't observe that wait, so it follows the image count.
-- Getters take an index and return one handle by value (bounds-checked with `.at()`).
-- Uses a local guard object so a failure part-way through construction does not leak.
-
-### 10. `Pipeline` — `Pipeline.hpp/.cpp`
-**Responsibility:** the compiled graphics pipeline state (the "recipe" for a draw).
-- Loads SPIR-V from disk with `readFile` and `createShaderModule` (`shaderModule.hpp/.cpp`). Shader modules are transient, so they are destroyed via a function-scoped `ShaderModuleGuard`.
-- Configures the fixed-function state: vertex input (empty, since positions are hardcoded in `triangle.vert`), input assembly, viewport and scissor, rasterizer, multisampling, and color blending.
-- Owns an empty `VkPipelineLayout` (no descriptors or push constants yet).
-- Chains `VkPipelineRenderingCreateInfo` with the color attachment format onto the create info. There is no render pass object, so `renderPass = VK_NULL_HANDLE`.
-- **Pipelines are baked:** changing the viewport, shaders, or blending means a different pipeline, unless the state is declared dynamic.
-
-### 11. `CommandBuffers` — `CommandBuffers.hpp/.cpp`
-**Responsibility:** record the drawing commands once, up front.
-- One `VkCommandPool` for the graphics family, plus one `VkCommandBuffer` per swapchain image, allocated in a single batched call.
-- Per buffer, records:
-  1. A barrier from `UNDEFINED` to `COLOR_ATTACHMENT_OPTIMAL`.
-  2. `vkCmdBeginRendering` with a `VkRenderingAttachmentInfo` (clear/store on that image's view).
-  3. `vkCmdBindPipeline` and `vkCmdDraw(3, 1, 0, 0)`.
-  4. `vkCmdEndRendering`.
-  5. A barrier from `COLOR_ATTACHMENT_OPTIMAL` to `PRESENT_SRC_KHR`.
-- The destructor destroys only the pool, which frees the buffers.
-- Reads the swapchain's images and views without owning them.
-
-### 12. `App` — `App.hpp/.cpp`
-**Responsibility:** the orchestrator. It owns everything, wires the dependencies, and runs the loop.
-- Constructor helpers: `pickPhysicalDevice`, `pickQueueFamilies`, `pickSwapchainSupport`.
-- Owns `currentFrame`, the frame-slot counter (wraps at `MAX_FRAMES_IN_FLIGHT - 1`).
-- `run()` loops on `glfwPollEvents()` and `drawFrame()`, then calls `vkDeviceWaitIdle` once after the loop, so the GPU is idle before the destructors run.
-- **Member order is load-bearing.** Reordering the fields can break construction or teardown order.
+### CommandBuffers
+- One pool and one command buffer per swapchain image, recorded once: barrier to `COLOR_ATTACHMENT_OPTIMAL`, `vkCmdBeginRendering`, bind pipeline, set viewport and scissor, bind the mesh's vertex and index buffers, `vkCmdDrawIndexed`, `vkCmdEndRendering`, barrier to `PRESENT_SRC_KHR`.
+- Takes a `const Mesh&`. Recording is cheap and happens up front; each frame only submits.
 
 ---
 
-## 4. The frame, step by step (`App::drawFrame`)
+## 4. The frame, step by step (`Renderer::drawFrame`)
 
 ```
+(if resize flag set)   recreateSwapchain()
 vkWaitForFences        fences[currentFrame]: this slot's previous work is done
-vkResetFences          re-arm that fence
 vkAcquireNextImageKHR  signals imageAvailable[currentFrame]; returns imageIndex
+                       OUT_OF_DATE -> recreate and skip this frame
+wait imagesInFlight[imageIndex] if set; imagesInFlight[imageIndex] = this fence
+vkResetFences          re-arm this slot's fence (only after acquire succeeded)
 vkQueueSubmit          runs commandBuffers[imageIndex]
                          waits:   imageAvailable[currentFrame] @ COLOR_ATTACHMENT_OUTPUT
                          signals: renderComplete[imageIndex] + fences[currentFrame]
-vkQueuePresentKHR      shows the image
-                         waits:   renderComplete[imageIndex]
+vkQueuePresentKHR      waits renderComplete[imageIndex]; OUT_OF_DATE/SUBOPTIMAL -> recreate
 currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT
 ```
 
@@ -168,8 +145,10 @@ currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT
 
 | Gap | Effect | Direction |
 |-----|--------|-----------|
-| Only one hardcoded 3-vertex triangle | No real geometry yet | Index buffer, then uniform buffers with descriptor sets (camera/transform via GLM) |
-| No depth buffer, textures, or model loading | Nothing 3D yet | Follows the vertex-buffer work |
+| No per-frame changing data | Nothing can move or use a camera | Uniform buffers + descriptor sets (one per frame slot) |
+| One mesh, one pipeline, hardcoded in `App` | Not a scene yet | Multiple meshes; later a scene/entity layer above `Renderer` |
+| No depth buffer, textures, or model loading | Nothing 3D yet | Depth image, textures, glTF loading, lighting |
+| Per-image pre-recorded command buffers | Needs `imagesInFlight`; fine for static scenes | Re-record per frame slot once content changes every frame |
 
 Longer-term roadmap (static mesh → skeletal animation → blending/IK → Jolt cloth)
 is in [`../project-notes.md`](../project-notes.md).
@@ -183,4 +162,7 @@ is in [`../project-notes.md`](../project-notes.md).
 - `std::optional` for "not found yet".
 - `p`-prefixed constructor parameters where they would shadow a member.
 - **A class only destroys what it created.**
-- Lowercase-named files (`physicalDevice`, `queueFamilies`, `swapchainSupport`, `shaderModule`) are free-function helpers. Capitalized files are RAII classes.
+- `const T&` for inputs that are only read; plain values for handles and numbers.
+- Quotes for project headers (including `vk_enum_string_helper.h`), angle brackets for system and library headers (`<vk_mem_alloc.h>`, `<vulkan/vulkan.h>`).
+- Lowercase-named files (`physicalDevice`, `queueFamilies`, `swapchainSupport`, `shaderModule`, `copyBuffer`) are free-function helpers. Capitalized files are classes.
+- Add every new `.cpp` to `SOURCES` in `CMakeLists.txt` at the moment it is created (a missing entry shows up as a link error, not a compile error).

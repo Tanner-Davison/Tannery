@@ -18,6 +18,7 @@ App::App(int width, int height, const char* title)
     , mesh(context, QUAD_VERTICES, QUAD_INDICES)
     , renderer(context, window, mesh) {
     glfwSetWindowUserPointer(window.handle(), this);
+    // Frame resize callback
     glfwSetFramebufferSizeCallback(window.handle(), [](GLFWwindow* w, int, int) {
         auto* app = static_cast<App*>(glfwGetWindowUserPointer(w));
         app->renderer.onFramebufferResized();
@@ -30,7 +31,6 @@ void App::run() {
         renderer.drawFrame();
     }
     // GPU must finish before any destructor frees what it is
-    // using/home/tanner-davison/Pictures/Screenshots/Screenshot\ From\ 2026-10-01\ 20-55-54.png
 
     context.waitIdle();
 }

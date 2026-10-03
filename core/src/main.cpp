@@ -2,8 +2,8 @@
 #include <print>
 
 int main(int argc, char** argv) {
-    static constexpr int window_width{800};
-    constexpr int        window_height{600};
+    static constexpr int window_width{1440};
+    constexpr int        window_height{1280};
 
     try {
         App app(window_width, window_height, "Tannery");

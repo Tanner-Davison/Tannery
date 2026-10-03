@@ -21,7 +21,11 @@ class Buffer {
     VmaAllocation allocationHandle() const;
     VkDeviceSize  sizeBytes() const;
 
+    void* mappedData() const;
+    void  write(const void* data, VkDeviceSize bytes);
+
   private:
+    void*         mapped = nullptr;
     VmaAllocator  allocator;
     VkBuffer      buffer     = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;

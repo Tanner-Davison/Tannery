@@ -992,3 +992,98 @@ Parameters: `indexCount, instanceCount, firstIndex, vertexOffset, firstInstance`
 the draw read past the end of the buffer, which validation caught
 (`VUID-vkCmdDrawIndexed-robustBufferAccess2-08798`) even though the image
 looked correct.
+
+---
+
+# Added during uniform buffers and descriptor sets
+
+## vkCreateDescriptorSetLayout / vkDestroyDescriptorSetLayout
+
+**Category:** Descriptors
+
+**What it does:** Creates the *plan* of a descriptor set: for each binding, its
+number, descriptor type, count, and the shader stages that can use it. No
+buffer or image is involved yet.
+
+**Why it matters here:** `FrameDescriptors` declares binding 0 as a uniform
+buffer visible to the vertex stage. The same layout is given to the pipeline
+layout (the baked pipeline must know the shape up front) and used to allocate
+the sets.
+
+---
+
+## vkCreateDescriptorPool / vkDestroyDescriptorPool
+
+**Category:** Descriptors
+
+**What it does:** Reserves a fixed amount of descriptor memory: `maxSets` (how
+many sets) and, per descriptor type, a total `descriptorCount` (how many
+sockets across all sets). It does not grow; exceeding it makes allocation fail
+with `VK_ERROR_OUT_OF_POOL_MEMORY`. Destroying the pool frees its sets.
+
+**Why it matters here:** One set and one uniform-buffer descriptor per frame
+slot, so both numbers equal the frame count.
+
+---
+
+## vkAllocateDescriptorSets
+
+**Category:** Descriptors
+
+**What it does:** Allocates descriptor sets from a pool, one per layout handle
+passed in. The sets start empty: nothing is plugged into their bindings yet.
+
+**Why it matters here:** One set per frame slot, all allocated from the same
+layout.
+
+---
+
+## vkUpdateDescriptorSets
+
+**Category:** Descriptors
+
+**What it does:** Writes descriptors into sets: for each `VkWriteDescriptorSet`
+it names the set, binding, descriptor type, and the actual resource
+(`VkDescriptorBufferInfo`: buffer, offset, range). This is what connects a
+binding to a real buffer.
+
+**Why it matters here:** Done once at startup, plugging slot i's uniform buffer
+into set i's binding 0. After that only the buffer contents change each frame.
+
+---
+
+## vkCmdBindDescriptorSets
+
+**Category:** Command recording
+
+**What it does:** Binds descriptor sets to a pipeline bind point using a
+pipeline layout, so subsequent draws read from them.
+
+**Why it matters here:** Recorded each frame in `CommandBuffers::record` right
+after binding the pipeline, using the current frame slot's set.
+
+---
+
+## vkResetCommandBuffer
+
+**Category:** Command recording
+
+**What it does:** Returns a command buffer to the initial state so it can be
+recorded again (requires the pool to have
+`VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT`).
+
+**Why it matters here:** Command buffers are re-recorded every frame, one per
+frame slot, after that slot's fence has been waited on.
+
+---
+
+## vmaFlushAllocation
+
+**Category:** Memory (VMA)
+
+**What it does:** Makes CPU writes to a mapped allocation visible to the GPU.
+Needed on non-coherent host-visible memory; harmless (a no-op) on coherent
+memory.
+
+**Why it matters here:** Called in `Buffer::write` after the `memcpy` into the
+persistently mapped uniform buffer.

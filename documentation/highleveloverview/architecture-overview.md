@@ -51,7 +51,7 @@ Each Vulkan-owning class follows the same RAII shape: the constructor creates th
 |---|---|---|---|---|
 | App | `App` | class | `Window`, `GraphicsContext`, `Mesh`, `Renderer` | (top) |
 | Platform | `Window` | RAII class | `GLFWwindow*` | (nothing) |
-| Renderer | `Renderer` | class | `Swapchain`, `SyncObjects`, `Pipeline`, `CommandBuffers` (as `unique_ptr`s), `imagesInFlight`, `currentFrame` | `GraphicsContext`, `Window`, `Mesh` |
+| Renderer | `Renderer` | class | `Swapchain`, `SyncObjects` (rebuilt on resize, `unique_ptr`s); `FrameDescriptors`, `Pipeline`, `CommandBuffers` (whole-program lifetime); `currentFrame` | `GraphicsContext`, `Window`, `Mesh` |
 | Context | `GraphicsContext` | class | `VulkanInstance`, `Surface`, physical device, `QueueFamilyIndices`, `LogicalDevice`, `Allocator` | `Window` (for the surface) |
 | Context | `VulkanInstance` | RAII class | `VkInstance`, debug messenger | (nothing) |
 | Context | `Surface` | RAII class | `VkSurfaceKHR` | Instance, Window |
@@ -62,7 +62,9 @@ Each Vulkan-owning class follows the same RAII shape: the constructor creates th
 | Renderer | `Swapchain` | RAII class | `VkSwapchainKHR`, image views | Device, Surface, Support, Window |
 | Renderer | `SyncObjects` | RAII class | semaphores, fences | Device, Swapchain image count |
 | Renderer | `Pipeline` | RAII class | `VkPipeline`, `VkPipelineLayout` | Device, Swapchain extent and format, SPIR-V shaders, `Vertex` |
-| Renderer | `CommandBuffers` | RAII class | `VkCommandPool`, `VkCommandBuffer`s | Device, Swapchain images/views, Pipeline, Mesh |
+| Renderer | `CommandBuffers` | RAII class | `VkCommandPool`, one `VkCommandBuffer` per frame slot | Device, queue families (images, views, pipeline and mesh arrive as `record()` parameters) |
+| Renderer | `FrameDescriptors` | RAII class | descriptor set layout, pool, one set and one mapped uniform `Buffer` per frame slot | `GraphicsContext` |
+| Data | `CameraUBO` (`UniformData.hpp`) | header-only struct | (nothing) | GLM; mirrors the shader's uniform block |
 | Helpers | `physicalDevice`, `queueFamilies`, `swapchainSupport`, `shaderModule`, `copyBuffer` | free functions | (nothing) | various |
 | Helpers | `Vertex` | header-only struct | (nothing) | GLM; vertex layout descriptions |
 
@@ -145,10 +147,8 @@ currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT
 
 | Gap | Effect | Direction |
 |-----|--------|-----------|
-| No per-frame changing data | Nothing can move or use a camera | Uniform buffers + descriptor sets (one per frame slot) |
 | One mesh, one pipeline, hardcoded in `App` | Not a scene yet | Multiple meshes; later a scene/entity layer above `Renderer` |
 | No depth buffer, textures, or model loading | Nothing 3D yet | Depth image, textures, glTF loading, lighting |
-| Per-image pre-recorded command buffers | Needs `imagesInFlight`; fine for static scenes | Re-record per frame slot once content changes every frame |
 
 Longer-term roadmap (static mesh → skeletal animation → blending/IK → Jolt cloth)
 is in [`../project-notes.md`](../project-notes.md).

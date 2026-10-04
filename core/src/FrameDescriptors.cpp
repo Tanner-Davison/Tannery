@@ -1,16 +1,18 @@
-#include "FrameDescriptor.hpp"
+#include "FrameDescriptors.hpp"
 #include "vk_enum_string_helper.h"
 #include <format>
 
 // function only exists in this implementation file
 namespace {
 void check(VkResult res, const char* what) {
-    throw std::runtime_error(
-        std::format("{} failed. VkError: {}", what, string_VkResult(res)));
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error(
+            std::format("{} failed. VkError: {}", what, string_VkResult(res)));
+    }
 }
 } // namespace
 
-FrameDescriptor::FrameDescriptor(const GraphicsContext& pContext, uint32_t pFrameCount)
+FrameDescriptors::FrameDescriptors(const GraphicsContext& pContext, uint32_t pFrameCount)
     : device(pContext.deviceHandle()) {
     try {
         // Layout: the SHAPE. Binding 0 is a uniform buffer, visibile to the vertex shader
@@ -21,6 +23,7 @@ FrameDescriptor::FrameDescriptor(const GraphicsContext& pContext, uint32_t pFram
         bindingDescriptorLayout.stageFlags      = VK_SHADER_STAGE_VERTEX_BIT;
 
         VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
+        layoutCreateInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutCreateInfo.bindingCount = 1;
         layoutCreateInfo.pBindings    = &bindingDescriptorLayout;
 
@@ -80,7 +83,11 @@ FrameDescriptor::FrameDescriptor(const GraphicsContext& pContext, uint32_t pFram
     }
 };
 
-void FrameDescriptor::destroy() {
+FrameDescriptors::~FrameDescriptors() {
+    destroy();
+};
+
+void FrameDescriptors::destroy() {
     buffers.clear();
     if (pool != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(this->device, this->pool, nullptr);
@@ -92,14 +99,14 @@ void FrameDescriptor::destroy() {
     }
 }
 
-void FrameDescriptor::update(uint32_t pFrameIndex, const CameraUBO& pData) {
+void FrameDescriptors::update(uint32_t pFrameIndex, const CameraUBO& pData) {
     buffers.at(pFrameIndex)->write(&pData, sizeof(CameraUBO));
 }
 
-VkDescriptorSetLayout FrameDescriptor::layoutHandle() const {
+VkDescriptorSetLayout FrameDescriptors::layoutHandle() const {
     return this->layout;
 }
 
-VkDescriptorSet FrameDescriptor::setHandle(uint32_t frameIndex) const {
+VkDescriptorSet FrameDescriptors::setHandle(uint32_t frameIndex) const {
     return sets.at(frameIndex);
 }

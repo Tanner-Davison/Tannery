@@ -4,17 +4,17 @@
 #include <memory>
 #include <vector>
 
-class FrameDescriptor {
+class FrameDescriptors {
   public:
-    FrameDescriptor(const GraphicsContext& pContext, uint32_t pFrameCount);
+    FrameDescriptors(const GraphicsContext& pContext, uint32_t pFrameCount);
 
     // Removed copy and move constructors
-    FrameDescriptor(const FrameDescriptor&)           = delete;
-    FrameDescriptor operator=(const FrameDescriptor&) = delete;
-    FrameDescriptor(FrameDescriptor&&)                = delete;
-    FrameDescriptor& operator=(FrameDescriptor&&)     = delete;
+    FrameDescriptors(const FrameDescriptors&)            = delete;
+    FrameDescriptors& operator=(const FrameDescriptors&) = delete;
+    FrameDescriptors(FrameDescriptors&&)                 = delete;
+    FrameDescriptors& operator=(FrameDescriptors&&)      = delete;
 
-    ~FrameDescriptor();
+    ~FrameDescriptors();
 
     // Handles
     VkDescriptorSetLayout layoutHandle() const;

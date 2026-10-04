@@ -35,7 +35,8 @@ set(SOURCES
     core/src/copyBuffer.cpp
     core/src/GraphicsContext.cpp
     core/src/Mesh.cpp
-    core/src/Renderer.cpp)
+    core/src/Renderer.cpp
+    core/src/FrameDescriptors.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 
@@ -95,8 +96,9 @@ if(APPLE)
 endif()
 
 # Adds SHADER_DIR to CMAKE
-target_compile_definitions(${PROJECT_NAME}
-                           PRIVATE SHADER_DIR="${CMAKE_BINARY_DIR}/shaders")
+target_compile_definitions(
+    ${PROJECT_NAME} PRIVATE SHADER_DIR="${CMAKE_BINARY_DIR}/shaders"
+                            GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 target_include_directories(
     ${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include

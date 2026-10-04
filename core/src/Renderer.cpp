@@ -16,14 +16,16 @@ Renderer::Renderer(const GraphicsContext& ctx, const Window& win, const Mesh& m)
                                             ctx.queueFamilies()))
     , syncObjects(
           std::make_unique<SyncObjects>(ctx.deviceHandle(), swapchain->imageCountHandle()))
-    , pipeline(
-          std::make_unique<Pipeline>(ctx.deviceHandle(),
-                                     swapchain->extentHandle(),
-                                     std::filesystem::path(SHADER_DIR) / "triangle.vert.spv",
-                                     std::filesystem::path(SHADER_DIR) / "triangle.frag.spv",
-                                     swapchain->formatHandle().format))
-    , commandBuffers(buildCommandBuffers())
-    , imagesInFlight(swapchain->imageCountHandle(), VK_NULL_HANDLE) {}
+    , descriptors(ctx, SyncObjects::MAX_FRAMES_IN_FLIGHT)
+    , pipeline(ctx.deviceHandle(),
+               swapchain->extentHandle(),
+               std::filesystem::path(SHADER_DIR) / "triangle.vert.spv",
+               std::filesystem::path(SHADER_DIR) / "triangle.frag.spv",
+               swapchain->formatHandle().format,
+               descriptors.layoutHandle())
+    , commandBuffers(ctx.deviceHandle(),
+                     ctx.queueFamilies(),
+                     SyncObjects::MAX_FRAMES_IN_FLIGHT) {}
 
 SwapchainSupport Renderer::pickSwapchainSupport(VkPhysicalDevice physicalDevice,
                                                 VkSurfaceKHR     surface) {
@@ -34,22 +36,16 @@ SwapchainSupport Renderer::pickSwapchainSupport(VkPhysicalDevice physicalDevice,
     return support;
 }
 
-// One place that knows how to build command buffers (used at startup and on resize)
-std::unique_ptr<CommandBuffers> Renderer::buildCommandBuffers() const {
-    return std::make_unique<CommandBuffers>(context.deviceHandle(),
-                                            swapchain->imageViewsHandle(),
-                                            swapchain->imagesHandle(),
-                                            pipeline->pipelineHandle(),
-                                            swapchain->extentHandle(),
-                                            context.queueFamilies(),
-                                            mesh);
-}
-
 void Renderer::onFramebufferResized() {
     framebufferResized = true;
 }
 
-void Renderer::drawFrame() {
+float Renderer::aspectRatio() const {
+    const VkExtent2D e = swapchain->extentHandle();
+    return static_cast<float>(e.width) / static_cast<float>(e.height);
+}
+
+void Renderer::drawFrame(const CameraUBO& camera) {
     if (framebufferResized) {
         framebufferResized = false;
         recreateSwapchain();
@@ -57,6 +53,8 @@ void Renderer::drawFrame() {
     const VkDevice device = context.deviceHandle();
     VkFence        fence  = syncObjects->getFence(currentFrame);
 
+    // Once this returns, the GPU is done with this slot's previous frame: its command
+    // buffer and its uniform buffer are safe to overwrite.
     VkResult res = vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
     if (res != VK_SUCCESS) {
         throw std::runtime_error(
@@ -78,18 +76,22 @@ void Renderer::drawFrame() {
         throw std::runtime_error(std::format("Failed to acquire swapchain image. VkError: {}",
                                              string_VkResult(res)));
     }
+    vkResetFences(device, 1, &fence); // only now that a submit is certain
 
-    // The per-image command buffer may still be pending from an earlier frame
-    if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
-        vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
-    }
-    imagesInFlight[imageIndex] = fence;
-    vkResetFences(device, 1, &fence);
+    descriptors.update(currentFrame, camera);
+    VkCommandBuffer commandBuffer =
+        commandBuffers.record(currentFrame,
+                              swapchain->imagesHandle()[imageIndex],
+                              swapchain->imageViewsHandle()[imageIndex],
+                              swapchain->extentHandle(),
+                              pipeline.pipelineHandle(),
+                              pipeline.pipelineLayoutHandle(),
+                              descriptors.setHandle(currentFrame),
+                              mesh);
 
     VkSemaphore          waitSemaphore = syncObjects->getImageAvailableSemaphore(currentFrame);
     VkSemaphore          signalSemaphore = syncObjects->getRenderCompleteSemaphore(imageIndex);
     VkPipelineStageFlags waitStage       = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkCommandBuffer      commandBuffer   = commandBuffers->getCmdBuffer(imageIndex);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -136,14 +138,10 @@ void Renderer::recreateSwapchain() {
         glfwWaitEvents();
     }
 
-    // GPU must be done with everything we are about to destroy
     context.waitIdle();
-
-    // Refresh the cached surface capabilities (new currentExtent)
     support = pickSwapchainSupport(context.physicalDeviceHandle(), context.surfaceHandle());
 
-    // Destroy dependents first, keep the old swapchain alive to hand to the new one
-    commandBuffers.reset();
+    // Only the swapchain and the per-image semaphores depend on the window size now
     syncObjects.reset();
     auto oldSwapchain = std::move(swapchain);
     swapchain         = std::make_unique<Swapchain>(context.deviceHandle(),
@@ -153,10 +151,6 @@ void Renderer::recreateSwapchain() {
                                             context.queueFamilies(),
                                             oldSwapchain->handle());
     oldSwapchain.reset();
-
-    // Rebuild in dependency order. The pipeline survives (viewport/scissor are dynamic)
     syncObjects =
         std::make_unique<SyncObjects>(context.deviceHandle(), swapchain->imageCountHandle());
-    commandBuffers = buildCommandBuffers();
-    imagesInFlight.assign(swapchain->imageCountHandle(), VK_NULL_HANDLE);
 }

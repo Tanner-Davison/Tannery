@@ -1,14 +1,15 @@
 #pragma once
 #include "CommandBuffers.hpp"
+#include "FrameDescriptors.hpp"
 #include "GraphicsContext.hpp"
 #include "Mesh.hpp"
 #include "Pipeline.hpp"
 #include "Swapchain.hpp"
 #include "SyncObjects.hpp"
+#include "UniformData.hpp"
 #include "Window.hpp"
 #include "swapchainSupport.hpp"
 #include <memory>
-#include <vector>
 
 class Renderer {
   public:
@@ -20,16 +21,16 @@ class Renderer {
     Renderer(Renderer&&)                 = delete;
     Renderer& operator=(Renderer&&)      = delete;
 
-    void drawFrame();
-    void onFramebufferResized();
+    void  drawFrame(const CameraUBO& camera);
+    void  onFramebufferResized();
+    float aspectRatio() const;
 
   private:
-    static SwapchainSupport         pickSwapchainSupport(VkPhysicalDevice physicalDevice,
-                                                         VkSurfaceKHR     surface);
-    std::unique_ptr<CommandBuffers> buildCommandBuffers() const;
-    void                            recreateSwapchain();
+    static SwapchainSupport pickSwapchainSupport(VkPhysicalDevice pPhysicalDevice,
+                                                 VkSurfaceKHR     pSurface);
+    void                    recreateSwapchain();
 
-    // Borrowed, owned by App (declared before the Renderer there, so they outlive it)
+    // Borrowed, ownded by App (declared before the Renderer there, so they outlive it)
     const GraphicsContext& context;
     GLFWwindow*            window;
     const Mesh&            mesh;
@@ -37,11 +38,14 @@ class Renderer {
     bool     framebufferResized = false;
     uint32_t currentFrame       = 0;
 
-    // Owned. Declaration order = dependency order
-    SwapchainSupport                support;
-    std::unique_ptr<Swapchain>      swapchain;
-    std::unique_ptr<SyncObjects>    syncObjects;
-    std::unique_ptr<Pipeline>       pipeline;
-    std::unique_ptr<CommandBuffers> commandBuffers;
-    std::vector<VkFence>            imagesInFlight;
+    // Rebuilt on resize
+    SwapchainSupport           support;
+    std::unique_ptr<Swapchain> swapchain;
+    std::unique_ptr<SyncObjects>
+        syncObjects; // render-complete semaphores follow the image count
+
+    // Live for the whole program ( Nothing here depends on the window size )
+    FrameDescriptors descriptors;
+    Pipeline         pipeline;
+    CommandBuffers   commandBuffers;
 };

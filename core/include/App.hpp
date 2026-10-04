@@ -2,6 +2,7 @@
 #include "GraphicsContext.hpp"
 #include "Mesh.hpp"
 #include "Renderer.hpp"
+#include "UniformData.hpp"
 #include "Window.hpp"
 
 class App {
@@ -17,6 +18,7 @@ class App {
     App& operator=(App&&)      = delete;
 
   private:
+    CameraUBO makeCamera(float timeSeconds) const;
     // Destroyed in reverse: renderer, mesh, context, window
     Window          window;
     GraphicsContext context;

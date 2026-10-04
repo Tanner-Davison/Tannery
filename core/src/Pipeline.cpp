@@ -28,7 +28,8 @@ Pipeline::Pipeline(VkDevice                     pDevice,
                    VkExtent2D                   pExtent,
                    const std::filesystem::path& pVertPath,
                    const std::filesystem::path& pFragPath,
-                   VkFormat                     pSurfaceFormat)
+                   VkFormat                     pSurfaceFormat,
+                   VkDescriptorSetLayout        pSetLayouts)
     : device(pDevice) {
     std::vector<char> vertCode   = readFile(pVertPath);
     VkShaderModule    vertModule = createShaderModule(this->device, vertCode);
@@ -122,8 +123,8 @@ Pipeline::Pipeline(VkDevice                     pDevice,
     /* PIPLINE LAYOUT */
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0;
-    pipelineLayoutInfo.pSetLayouts    = nullptr;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts    = &pSetLayouts;
     VkResult pipelineLayoutResult     = vkCreatePipelineLayout(this->device,
                                                            &pipelineLayoutInfo,
                                                            nullptr,

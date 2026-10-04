@@ -1,4 +1,5 @@
 #include "App.hpp"
+#include <glm/gtc/matrix_transform.hpp>
 #include <vector>
 
 namespace {
@@ -28,9 +29,21 @@ App::App(int width, int height, const char* title)
 void App::run() {
     while (!glfwWindowShouldClose(window.handle())) {
         glfwPollEvents();
-        renderer.drawFrame();
+        renderer.drawFrame(makeCamera(static_cast<float>(glfwGetTime())));
     }
     // GPU must finish before any destructor frees what it is
 
     context.waitIdle();
+}
+
+CameraUBO App::makeCamera(float timeSeconds) const {
+    CameraUBO ubo{};
+    ubo.model = glm::rotate(glm::mat4(1.0f),
+                            timeSeconds * glm::radians(90.0f),
+                            glm::vec3(0.0f, 1.0f, 0.0f));
+    ubo.view =
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    ubo.proj = glm::perspective(glm::radians(45.0f), renderer.aspectRatio(), 0.1f, 10.0f);
+    ubo.proj[1][1] *= -1.0f; // GLM assumes OpenGl (Y up in clip space); Vulkans Y points down
+    return ubo;
 }

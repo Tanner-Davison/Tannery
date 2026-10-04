@@ -6,14 +6,7 @@
 
 class CommandBuffers {
   public:
-    CommandBuffers(VkDevice                        pDevice,
-                   const std::vector<VkImageView>& pImageViews,
-                   const std::vector<VkImage>&     pImages,
-                   VkPipeline                      pPipeline,
-                   VkExtent2D                      extent,
-                   const QueueFamilyIndices&       indices,
-                   const Mesh&                     mesh);
-
+    CommandBuffers(VkDevice pDevice, const QueueFamilyIndices& indices, uint32_t frameCount);
     ~CommandBuffers();
 
     // copy and move destruction
@@ -22,8 +15,14 @@ class CommandBuffers {
     CommandBuffers(CommandBuffers&&)                 = delete;
     CommandBuffers& operator=(CommandBuffers&&)      = delete;
 
-    VkCommandBuffer     getCmdBuffer(uint32_t imageIndex) const;
-    const VkCommandPool getCmdPool() const;
+    VkCommandBuffer record(uint32_t         pFrameIndex,
+                           VkImage          image,
+                           VkImageView      pImageView,
+                           VkExtent2D       pExtent,
+                           VkPipeline       pPipeline,
+                           VkPipelineLayout pPipelineLayout,
+                           VkDescriptorSet  pDescriptorSet,
+                           const Mesh&      mesh);
 
   private:
     std::vector<VkCommandBuffer> commandBuffers;

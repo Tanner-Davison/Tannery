@@ -17,12 +17,14 @@ Renderer::Renderer(const GraphicsContext& ctx, const Window& win, const Mesh& m)
     , syncObjects(
           std::make_unique<SyncObjects>(ctx.deviceHandle(), swapchain->imageCountHandle()))
     , descriptors(ctx, SyncObjects::MAX_FRAMES_IN_FLIGHT)
+    , depthImage(std::make_unique<DepthImage>(ctx, swapchain->extentHandle()))
     , pipeline(ctx.deviceHandle(),
                swapchain->extentHandle(),
                std::filesystem::path(SHADER_DIR) / "triangle.vert.spv",
                std::filesystem::path(SHADER_DIR) / "triangle.frag.spv",
                swapchain->formatHandle().format,
-               descriptors.layoutHandle())
+               descriptors.layoutHandle(),
+               depthImage->getDepthFormat())
     , commandBuffers(ctx.deviceHandle(),
                      ctx.queueFamilies(),
                      SyncObjects::MAX_FRAMES_IN_FLIGHT) {}
@@ -83,6 +85,8 @@ void Renderer::drawFrame(const CameraUBO& camera) {
         commandBuffers.record(currentFrame,
                               swapchain->imagesHandle()[imageIndex],
                               swapchain->imageViewsHandle()[imageIndex],
+                              depthImage->getDepthImageView(),
+                              depthImage->getDepthImage(),
                               swapchain->extentHandle(),
                               pipeline.pipelineHandle(),
                               pipeline.pipelineLayoutHandle(),
@@ -143,6 +147,7 @@ void Renderer::recreateSwapchain() {
 
     // Only the swapchain and the per-image semaphores depend on the window size now
     syncObjects.reset();
+    depthImage.reset();
     auto oldSwapchain = std::move(swapchain);
     swapchain         = std::make_unique<Swapchain>(context.deviceHandle(),
                                             context.surfaceHandle(),
@@ -150,6 +155,7 @@ void Renderer::recreateSwapchain() {
                                             window,
                                             context.queueFamilies(),
                                             oldSwapchain->handle());
+    depthImage        = std::make_unique<DepthImage>(this->context, swapchain->extentHandle());
     oldSwapchain.reset();
     syncObjects =
         std::make_unique<SyncObjects>(context.deviceHandle(), swapchain->imageCountHandle());

@@ -15,13 +15,15 @@ class CommandBuffers {
     CommandBuffers(CommandBuffers&&)                 = delete;
     CommandBuffers& operator=(CommandBuffers&&)      = delete;
 
-    VkCommandBuffer record(uint32_t         pFrameIndex,
+    VkCommandBuffer record(uint32_t         frameIndex,
                            VkImage          image,
-                           VkImageView      pImageView,
-                           VkExtent2D       pExtent,
-                           VkPipeline       pPipeline,
-                           VkPipelineLayout pPipelineLayout,
-                           VkDescriptorSet  pDescriptorSet,
+                           VkImageView      imageView,
+                           VkImageView      pDepthImageView,
+                           VkImage          pDepthImage,
+                           VkExtent2D       extent,
+                           VkPipeline       pipeline,
+                           VkPipelineLayout pipelineLayout,
+                           VkDescriptorSet  descriptorSet,
                            const Mesh&      mesh);
 
   private:

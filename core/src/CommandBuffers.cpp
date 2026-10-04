@@ -45,6 +45,8 @@ CommandBuffers::~CommandBuffers() {
 VkCommandBuffer CommandBuffers::record(uint32_t         frameIndex,
                                        VkImage          image,
                                        VkImageView      imageView,
+                                       VkImageView      pDepthImageView,
+                                       VkImage          pDepthImage,
                                        VkExtent2D       extent,
                                        VkPipeline       pipeline,
                                        VkPipelineLayout pipelineLayout,
@@ -68,6 +70,7 @@ VkCommandBuffer CommandBuffers::record(uint32_t         frameIndex,
     barrierBefore.subresourceRange    = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
     barrierBefore.srcAccessMask       = 0;
     barrierBefore.dstAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
     vkCmdPipelineBarrier(cmd,
                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -88,6 +91,13 @@ VkCommandBuffer CommandBuffers::record(uint32_t         frameIndex,
     colorAttachment.loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.clearValue  = clearColor;
+    VkRenderingAttachmentInfo depthAttachment{};
+    depthAttachment.sType                   = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depthAttachment.imageView               = pDepthImageView;
+    depthAttachment.imageLayout             = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depthAttachment.loadOp                  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp                 = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.clearValue.depthStencil = {1.0f, 0};
 
     VkRenderingInfo renderingInfo{};
     renderingInfo.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -96,6 +106,31 @@ VkCommandBuffer CommandBuffers::record(uint32_t         frameIndex,
     renderingInfo.layerCount           = 1;
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments    = &colorAttachment;
+    renderingInfo.pDepthAttachment     = &depthAttachment;
+
+    VkImageMemoryBarrier memoryBarrier{};
+    memoryBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    memoryBarrier.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED;
+    memoryBarrier.newLayout           = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    memoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    memoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    memoryBarrier.image               = pDepthImage;
+    memoryBarrier.subresourceRange    = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
+    memoryBarrier.srcAccessMask       = 0;
+    memoryBarrier.dstAccessMask       = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd,
+                         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                             VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, // srcStageMask
+                         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                             VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, // dstStageMask
+                         0,                                             // dependencyFlags
+                         0,
+                         nullptr, // memory barriers
+                         0,
+                         nullptr, // buffer barriers
+                         1,
+                         &memoryBarrier); // image barriers
     vkCmdBeginRendering(cmd, &renderingInfo);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -123,6 +158,7 @@ VkCommandBuffer CommandBuffers::record(uint32_t         frameIndex,
     vkCmdEndRendering(cmd);
 
     VkImageMemoryBarrier barrierAfter{};
+
     barrierAfter.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrierAfter.oldLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     barrierAfter.newLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
@@ -132,6 +168,7 @@ VkCommandBuffer CommandBuffers::record(uint32_t         frameIndex,
     barrierAfter.subresourceRange    = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
     barrierAfter.srcAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     barrierAfter.dstAccessMask       = 0;
+
     vkCmdPipelineBarrier(cmd,
                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                          VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,

@@ -10,7 +10,8 @@ class Pipeline {
              const std::filesystem::path& pVertPath,
              const std::filesystem::path& pFragPath,
              VkFormat                     pSurfaceFormat,
-             VkDescriptorSetLayout        pSetLayouts);
+             VkDescriptorSetLayout        pSetLayouts,
+             VkFormat                     pDepthFormat);
 
     // Copy && Move constructors
     Pipeline(const Pipeline&)            = delete;

@@ -29,7 +29,8 @@ Pipeline::Pipeline(VkDevice                     pDevice,
                    const std::filesystem::path& pVertPath,
                    const std::filesystem::path& pFragPath,
                    VkFormat                     pSurfaceFormat,
-                   VkDescriptorSetLayout        pSetLayouts)
+                   VkDescriptorSetLayout        pSetLayouts,
+                   VkFormat                     pDepthFormat)
     : device(pDevice) {
     std::vector<char> vertCode   = readFile(pVertPath);
     VkShaderModule    vertModule = createShaderModule(this->device, vertCode);
@@ -141,8 +142,16 @@ Pipeline::Pipeline(VkDevice                     pDevice,
     pipelineRenderingInfo.pNext = nullptr;
     pipelineRenderingInfo.colorAttachmentCount    = 1;
     pipelineRenderingInfo.pColorAttachmentFormats = &colorFormat;
-    pipelineRenderingInfo.depthAttachmentFormat   = VK_FORMAT_UNDEFINED;
+    pipelineRenderingInfo.depthAttachmentFormat   = pDepthFormat;
     pipelineRenderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+    VkPipelineDepthStencilStateCreateInfo depthStencilCreateInfo{};
+    depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencilCreateInfo.depthTestEnable  = VK_TRUE;
+    depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
+    depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS; // closer smaller distance wins
+    depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
+    depthStencilCreateInfo.stencilTestEnable     = VK_FALSE;
 
     VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     VkPipelineDynamicStateCreateInfo dynamicState{};
@@ -161,7 +170,7 @@ Pipeline::Pipeline(VkDevice                     pDevice,
     pipelineInfo.pRasterizationState = &rasterizerState;
     pipelineInfo.pMultisampleState   = &multisampling;
     pipelineInfo.pColorBlendState    = &colorBlending;
-    pipelineInfo.pDepthStencilState  = nullptr;
+    pipelineInfo.pDepthStencilState  = &depthStencilCreateInfo;
     pipelineInfo.pDynamicState       = &dynamicState;
     pipelineInfo.layout              = this->pipelineLayout;
     pipelineInfo.renderPass          = nullptr;

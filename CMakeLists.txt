@@ -36,7 +36,8 @@ set(SOURCES
     core/src/GraphicsContext.cpp
     core/src/Mesh.cpp
     core/src/Renderer.cpp
-    core/src/FrameDescriptors.cpp)
+    core/src/FrameDescriptors.cpp
+    core/src/DepthImage.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 

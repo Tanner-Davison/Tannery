@@ -1087,3 +1087,18 @@ memory.
 
 **Why it matters here:** Called in `Buffer::write` after the `memcpy` into the
 persistently mapped uniform buffer.
+
+---
+
+## vmaCreateImage / vmaDestroyImage
+
+**Category:** Memory (VMA)
+
+**What it does:** Creates a `VkImage` and allocates and binds suitable memory in
+one call (the image counterpart of `vmaCreateBuffer`). Takes a
+`VkImageCreateInfo` (the image description) and a `VmaAllocationCreateInfo`
+(memory instructions). `vmaDestroyImage` frees both.
+
+**Why it matters here:** Creates the depth image in `DepthImage` with
+`VMA_MEMORY_USAGE_AUTO` and the dedicated-memory flag (VMA's guidance for
+render targets). The image view is created separately and destroyed first.

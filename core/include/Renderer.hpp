@@ -1,5 +1,6 @@
 #pragma once
 #include "CommandBuffers.hpp"
+#include "DepthImage.hpp"
 #include "FrameDescriptors.hpp"
 #include "GraphicsContext.hpp"
 #include "Mesh.hpp"
@@ -39,10 +40,12 @@ class Renderer {
     uint32_t currentFrame       = 0;
 
     // Rebuilt on resize
-    SwapchainSupport           support;
+    SwapchainSupport support;
+
     std::unique_ptr<Swapchain> swapchain;
     std::unique_ptr<SyncObjects>
         syncObjects; // render-complete semaphores follow the image count
+    std::unique_ptr<DepthImage> depthImage;
 
     // Live for the whole program ( Nothing here depends on the window size )
     FrameDescriptors descriptors;

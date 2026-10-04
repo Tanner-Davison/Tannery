@@ -4,13 +4,19 @@
 
 namespace {
 // First indexed mesh: a quad. First triangle (0 -> 1 -> 2), second triangle (2 -> 3 -> 0)
+const float               ZINDEX        = 0.0f;
 const std::vector<Vertex> QUAD_VERTICES = {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // 0 top-left, red
-    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},  // 1 top-right, green
-    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},   // 2 bottom-right, blue
-    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}},  // 3 bottom-left, white
+    {{-0.5f, -0.5f, ZINDEX}, {1.0f, 0.0f, 0.0f}}, // 0 top-left, red
+    {{0.5f, -0.5f, ZINDEX}, {0.0f, 1.0f, 0.0f}},  // 1 top-right, green
+    {{0.5f, 0.5f, ZINDEX}, {0.0f, 0.0f, 1.0f}},   // 2 bottom-right, blue
+    {{-0.5f, 0.5f, ZINDEX}, {1.0f, 1.0f, 1.0f}},  // 3 bottom-left, white
+    {{0, -0.5, -0.5}, {1, 1, 0}},
+    {{0, -0.5, 0.5}, {0, 1, 1}},
+    {{0, 0.5, 0.5}, {1, 0, 1}},
+    {{0, 0.5, -0.5}, {1, 0.5, 0}},
+
 };
-const std::vector<uint16_t> QUAD_INDICES = {0, 1, 2, 2, 3, 0};
+const std::vector<uint16_t> QUAD_INDICES = {0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4};
 } // namespace
 
 App::App(int width, int height, const char* title)

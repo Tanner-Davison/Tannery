@@ -9,7 +9,7 @@
  *
  * */
 struct Vertex {
-    glm::vec2 pos;
+    glm::vec3 pos;
     glm::vec3 color;
 
     static VkVertexInputBindingDescription getBindingDescription() {
@@ -24,7 +24,7 @@ struct Vertex {
     // R32G32_SFLOAT means 'two 32-bit floats'
     static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescription() {
         std::array<VkVertexInputAttributeDescription, 2> attrs{};
-        attrs[0] = {0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, pos)};
+        attrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)};
         attrs[1] = {1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)};
         return attrs;
     }

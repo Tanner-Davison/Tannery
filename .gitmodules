@@ -1,3 +1,6 @@
 [submodule "deps/taskflow"]
 	path = deps/taskflow
 	url = https://github.com/taskflow/taskflow
+[submodule "deps/stb"]
+	path = deps/stb
+	url = https://github.com/nothings/stb

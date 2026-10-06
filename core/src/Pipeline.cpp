@@ -29,7 +29,7 @@ Pipeline::Pipeline(VkDevice                     pDevice,
                    const std::filesystem::path& pVertPath,
                    const std::filesystem::path& pFragPath,
                    VkFormat                     pSurfaceFormat,
-                   VkDescriptorSetLayout        pSetLayouts,
+                   std::span<const VkDescriptorSetLayout> pSetLayouts,
                    VkFormat                     pDepthFormat)
     : device(pDevice) {
     std::vector<char> vertCode   = readFile(pVertPath);
@@ -124,8 +124,8 @@ Pipeline::Pipeline(VkDevice                     pDevice,
     /* PIPLINE LAYOUT */
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts    = &pSetLayouts;
+    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(pSetLayouts.size());
+    pipelineLayoutInfo.pSetLayouts    = pSetLayouts.data();
     VkResult pipelineLayoutResult     = vkCreatePipelineLayout(this->device,
                                                            &pipelineLayoutInfo,
                                                            nullptr,

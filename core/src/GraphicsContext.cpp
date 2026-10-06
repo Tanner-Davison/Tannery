@@ -1,9 +1,20 @@
 #include "GraphicsContext.hpp"
-#include "copyBuffer.hpp"
 #include "physicalDevice.hpp"
 #include "vk_enum_string_helper.h"
 #include <format>
 #include <stdexcept>
+
+namespace {
+// Destroys the temporary pool when the function exits, even if it throws
+struct PoolGuard {
+    VkDevice      device;
+    VkCommandPool pool;
+
+    ~PoolGuard() {
+        vkDestroyCommandPool(device, pool, nullptr);
+    }
+};
+} // namespace
 
 GraphicsContext::GraphicsContext(const Window& window, const char* appName)
     : instance(appName)
@@ -66,6 +77,59 @@ void GraphicsContext::waitIdle() const {
     vkDeviceWaitIdle(device.handle());
 }
 
+void GraphicsContext::immediateSubmit(
+    const std::function<void(VkCommandBuffer)>& record) const {
+    // short-lived pool just for this submission
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    poolInfo.queueFamilyIndex = indices.graphicsFamilyIndex.value();
+
+    VkCommandPool pool = VK_NULL_HANDLE;
+    VkResult      res  = vkCreateCommandPool(device.handle(), &poolInfo, nullptr, &pool);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error(
+            std::format("immediateSubmit: pool failed: {}", string_VkResult(res)));
+    }
+    PoolGuard guard(device.handle(), pool);
+
+    // one command buffer from that pool
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool        = pool;
+    allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer cmd = VK_NULL_HANDLE;
+    res                 = vkAllocateCommandBuffers(device.handle(), &allocInfo, &cmd);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error(
+            std::format("immediateSubmit: allocate failed: {}", string_VkResult(res)));
+    }
+
+    // record: begin, caller's commands, end
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    record(cmd);
+
+    vkEndCommandBuffer(cmd);
+
+    // submit and wait until the GPU has finished
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers    = &cmd;
+    res = vkQueueSubmit(device.GraphicsQueueHandle(), 1, &submitInfo, VK_NULL_HANDLE);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error(
+            std::format("immediateSubmit: submit failed: {}", string_VkResult(res)));
+    }
+    vkQueueWaitIdle(device.GraphicsQueueHandle());
+}
+
 std::unique_ptr<Buffer> GraphicsContext::createDeviceLocalBuffer(
     const void*        data,
     VkDeviceSize       size,
@@ -92,11 +156,12 @@ std::unique_ptr<Buffer> GraphicsContext::createDeviceLocalBuffer(
                                                  0);
 
     // 3. Copy and wait; `staging` is destroyed on return, after the GPU is done with it
-    copyBuffer(device.handle(),
-               device.GraphicsQueueHandle(),
-               indices.graphicsFamilyIndex.value(),
-               staging.handle(),
-               deviceBuffer->handle(),
-               size);
+    immediateSubmit([&](VkCommandBuffer cmd) {
+        VkBufferCopy region{};
+        region.srcOffset = 0;
+        region.dstOffset = 0;
+        region.size      = size;
+        vkCmdCopyBuffer(cmd, staging.handle(), deviceBuffer->handle(), 1, &region);
+    });
     return deviceBuffer;
 }

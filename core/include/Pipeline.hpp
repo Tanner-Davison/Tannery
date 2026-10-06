@@ -1,6 +1,7 @@
 #pragma once
 #include "Vertex.hpp"
 #include <filesystem>
+#include <span>
 #include <vulkan/vulkan.h>
 
 class Pipeline {
@@ -10,7 +11,7 @@ class Pipeline {
              const std::filesystem::path& pVertPath,
              const std::filesystem::path& pFragPath,
              VkFormat                     pSurfaceFormat,
-             VkDescriptorSetLayout        pSetLayouts,
+             std::span<const VkDescriptorSetLayout> pSetLayouts, // index = set number
              VkFormat                     pDepthFormat);
 
     // Copy && Move constructors

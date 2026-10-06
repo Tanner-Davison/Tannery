@@ -1,13 +1,18 @@
 #include "Renderer.hpp"
 #include "vk_enum_string_helper.h"
+#include <array>
 #include <filesystem>
 #include <format>
 #include <stdexcept>
 
-Renderer::Renderer(const GraphicsContext& ctx, const Window& win, const Mesh& m)
+Renderer::Renderer(const GraphicsContext&     ctx,
+                   const Window&              win,
+                   const Mesh&                m,
+                   const MaterialDescriptors& mat)
     : context(ctx)
     , window(win.handle())
     , mesh(m)
+    , material(mat)
     , support(pickSwapchainSupport(ctx.physicalDeviceHandle(), ctx.surfaceHandle()))
     , swapchain(std::make_unique<Swapchain>(ctx.deviceHandle(),
                                             ctx.surfaceHandle(),
@@ -23,7 +28,7 @@ Renderer::Renderer(const GraphicsContext& ctx, const Window& win, const Mesh& m)
                std::filesystem::path(SHADER_DIR) / "triangle.vert.spv",
                std::filesystem::path(SHADER_DIR) / "triangle.frag.spv",
                swapchain->formatHandle().format,
-               descriptors.layoutHandle(),
+               std::array{descriptors.layoutHandle(), mat.layoutHandle()}, // set 0, set 1
                depthImage->getDepthFormat())
     , commandBuffers(ctx.deviceHandle(),
                      ctx.queueFamilies(),
@@ -91,6 +96,7 @@ void Renderer::drawFrame(const CameraUBO& camera) {
                               pipeline.pipelineHandle(),
                               pipeline.pipelineLayoutHandle(),
                               descriptors.setHandle(currentFrame),
+                              material.setHandle(),
                               mesh);
 
     VkSemaphore          waitSemaphore = syncObjects->getImageAvailableSemaphore(currentFrame);

@@ -50,7 +50,8 @@ VkCommandBuffer CommandBuffers::record(uint32_t         frameIndex,
                                        VkExtent2D       extent,
                                        VkPipeline       pipeline,
                                        VkPipelineLayout pipelineLayout,
-                                       VkDescriptorSet  descriptorSet,
+                                       VkDescriptorSet  frameSet,
+                                       VkDescriptorSet  materialSet,
                                        const Mesh&      mesh) {
     VkCommandBuffer cmd = commandBuffers.at(frameIndex);
     check(vkResetCommandBuffer(cmd, 0), "vkResetCommandBuffer");
@@ -134,12 +135,14 @@ VkCommandBuffer CommandBuffers::record(uint32_t         frameIndex,
     vkCmdBeginRendering(cmd, &renderingInfo);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    // Array index + firstSet = set number: sets[0] -> set 0, sets[1] -> set 1
+    VkDescriptorSet sets[] = {frameSet, materialSet};
     vkCmdBindDescriptorSets(cmd,
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
                             pipelineLayout,
-                            0,
-                            1,
-                            &descriptorSet,
+                            0, // firstSet
+                            2, // descriptorSetCount
+                            sets,
                             0,
                             nullptr);
 

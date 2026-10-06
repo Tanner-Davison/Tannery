@@ -23,7 +23,8 @@ class CommandBuffers {
                            VkExtent2D       extent,
                            VkPipeline       pipeline,
                            VkPipelineLayout pipelineLayout,
-                           VkDescriptorSet  descriptorSet,
+                           VkDescriptorSet  frameSet,    // set 0: camera
+                           VkDescriptorSet  materialSet, // set 1: texture + sampler
                            const Mesh&      mesh);
 
   private:

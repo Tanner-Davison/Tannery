@@ -6,6 +6,7 @@
 #include "VulkanInstance.hpp"
 #include "Window.hpp"
 #include "queueFamilies.hpp"
+#include <functional>
 #include <memory>
 
 class GraphicsContext {
@@ -28,6 +29,10 @@ class GraphicsContext {
     const QueueFamilyIndices& queueFamilies() const;
 
     void waitIdle() const;
+
+    // One-shot GPU work: records `record` into a temporary command buffer, submits it to the
+    // graphics queue and blocks until it finishes. For uploads at load time, not per frame.
+    void immediateSubmit(const std::function<void(VkCommandBuffer)>& record) const;
 
     // Staging upload: CPU data -> GPU-local buffer (TRANSFER_DST is added for you)
     std::unique_ptr<Buffer> createDeviceLocalBuffer(const void*        data,

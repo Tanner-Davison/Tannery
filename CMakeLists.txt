@@ -32,12 +32,15 @@ set(SOURCES
     core/src/vma.cpp
     core/src/Allocator.cpp
     core/src/Buffer.cpp
-    core/src/copyBuffer.cpp
     core/src/GraphicsContext.cpp
     core/src/Mesh.cpp
     core/src/Renderer.cpp
     core/src/FrameDescriptors.cpp
-    core/src/DepthImage.cpp)
+    core/src/DepthImage.cpp
+    core/src/stb_image.cpp
+    core/src/Texture.cpp
+    core/src/Sampler.cpp
+    core/src/MaterialDescriptors.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 
@@ -70,12 +73,6 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 add_custom_target(Shaders DEPENDS ${SHADER_BINARIES})
 add_dependencies(${PROJECT_NAME} Shaders)
 
-# MINLOG
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE) # Turns off deprecation warning
-add_subdirectory(deps/minlog EXCLUDE_FROM_ALL) # minlog
-set(CMAKE_WARN_DEPRECATED ON CACHE BOOL "" FORCE)
-#
 # TASKFLOW
 set(TF_BUILD_TESTS ON CACHE BOOL "" FORCE)
 set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -86,7 +83,6 @@ add_subdirectory(deps/taskflow EXCLUDE_FROM_ALL) # taskflow
 # -------------------------------------------------------------------------------------------
 
 target_link_libraries(tannery PRIVATE glfw Vulkan::Vulkan)
-target_link_libraries(${PROJECT_NAME} PUBLIC minlog)
 target_link_libraries(${PROJECT_NAME} PUBLIC Taskflow)
 
 if(APPLE)
@@ -96,9 +92,10 @@ if(APPLE)
 
 endif()
 
-# Adds SHADER_DIR to CMAKE
+# Adds SHADER_DIR (compiled .spv) and TEXTURE_DIR (source images, read in place) to CMAKE
 target_compile_definitions(
     ${PROJECT_NAME} PRIVATE SHADER_DIR="${CMAKE_BINARY_DIR}/shaders"
+                            TEXTURE_DIR="${CMAKE_SOURCE_DIR}/data/textures"
                             GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 target_include_directories(

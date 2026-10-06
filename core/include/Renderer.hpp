@@ -3,6 +3,7 @@
 #include "DepthImage.hpp"
 #include "FrameDescriptors.hpp"
 #include "GraphicsContext.hpp"
+#include "MaterialDescriptors.hpp"
 #include "Mesh.hpp"
 #include "Pipeline.hpp"
 #include "Swapchain.hpp"
@@ -14,7 +15,10 @@
 
 class Renderer {
   public:
-    Renderer(const GraphicsContext& context, const Window& window, const Mesh& mesh);
+    Renderer(const GraphicsContext&     context,
+             const Window&              window,
+             const Mesh&                mesh,
+             const MaterialDescriptors& material);
     ~Renderer() = default;
 
     Renderer(const Renderer&)            = delete;
@@ -34,7 +38,8 @@ class Renderer {
     // Borrowed, ownded by App (declared before the Renderer there, so they outlive it)
     const GraphicsContext& context;
     GLFWwindow*            window;
-    const Mesh&            mesh;
+    const Mesh&                mesh;
+    const MaterialDescriptors& material;
 
     bool     framebufferResized = false;
     uint32_t currentFrame       = 0;

@@ -94,10 +94,17 @@ endif()
 
 # Adds SHADER_DIR (compiled .spv) and TEXTURE_DIR (source images, read in place) to CMAKE
 target_compile_definitions(
-    ${PROJECT_NAME} PRIVATE SHADER_DIR="${CMAKE_BINARY_DIR}/shaders"
-                            TEXTURE_DIR="${CMAKE_SOURCE_DIR}/data/textures"
-                            GLM_FORCE_DEPTH_ZERO_TO_ONE)
+    ${PROJECT_NAME}
+    PRIVATE SHADER_DIR="${CMAKE_BINARY_DIR}/shaders"
+            TEXTURE_DIR="${CMAKE_SOURCE_DIR}/data/textures" GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 target_include_directories(
     ${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include
                             ${CMAKE_CURRENT_SOURCE_DIR}/core/src)
+target_include_directories(
+    ${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include
+                            ${CMAKE_CURRENT_SOURCE_DIR}/core/src)
+
+# stb is header-only; deps/ lets `#include <stb/stb_image.h>` resolve on every platform
+target_include_directories(${PROJECT_NAME} SYSTEM
+                           PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/deps)

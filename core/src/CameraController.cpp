@@ -1,6 +1,9 @@
 #include "CameraController.hpp"
 
+#include <glm/glm.hpp>
+
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace {
@@ -9,20 +12,22 @@ constexpr float MAX_MOVE_SPEED   = 100.0f;
 constexpr float MIN_SENSITIVITY  = 0.0001f;
 constexpr float MAX_SENSITIVITY  = 0.02f;
 constexpr float SCROLL_STEP      = 1.15f; // each wheel notch multiplies speed by this
-constexpr float SENSITIVITY_RATE = 1.0f;  // [ and ] scale sensitivity by e^(rate * dt) per second
-} // namespace
+constexpr float SENSITIVITY_RATE = 1.0f;  // sensitivity buttons scale by e^(rate * dt) per second
 
-CameraController::CameraController()
-    : bindings{
-          {GLFW_KEY_W, {0.0f, 0.0f, 1.0f}},
-          {GLFW_KEY_S, {0.0f, 0.0f, -1.0f}},
-          {GLFW_KEY_D, {1.0f, 0.0f, 0.0f}},
-          {GLFW_KEY_A, {-1.0f, 0.0f, 0.0f}},
-          {GLFW_KEY_E, {0.0f, 1.0f, 0.0f}},
-          {GLFW_KEY_SPACE, {0.0f, 1.0f, 0.0f}},
-          {GLFW_KEY_Q, {0.0f, -1.0f, 0.0f}},
-          {GLFW_KEY_LEFT_SHIFT, {0.0f, -1.0f, 0.0f}},
-      } {}
+// Which camera-space direction (x right, y up, z forward) each movement action asks for
+struct MoveAction {
+    Action    action;
+    glm::vec3 localDir;
+};
+const std::array<MoveAction, 6> MOVE_ACTIONS = {{
+    {Action::MoveForward, {0.0f, 0.0f, 1.0f}},
+    {Action::MoveBackward, {0.0f, 0.0f, -1.0f}},
+    {Action::MoveRight, {1.0f, 0.0f, 0.0f}},
+    {Action::MoveLeft, {-1.0f, 0.0f, 0.0f}},
+    {Action::MoveUp, {0.0f, 1.0f, 0.0f}},
+    {Action::MoveDown, {0.0f, -1.0f, 0.0f}},
+}};
+} // namespace
 
 void CameraController::capture(GLFWwindow* pWindow) {
     glfwSetInputMode(pWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -41,16 +46,19 @@ void CameraController::release(GLFWwindow* pWindow) {
     captured = false;
 }
 
-void CameraController::update(GLFWwindow* pWindow, Camera& pCamera, float pDt) {
+void CameraController::update(GLFWwindow* pWindow,
+                              Camera&           pCamera,
+                              const InputMap&   pInput,
+                              float             pDt) {
     if (!captured) {
         return; // cursor is free (e.g. after alt-tab): the window is not driving the camera
     }
 
-    // Keys -> one summed camera-space direction
+    // Actions -> one summed camera-space direction
     glm::vec3 dir(0.0f);
-    for (const KeyBinding& binding : bindings) {
-        if (glfwGetKey(pWindow, binding.key) == GLFW_PRESS) {
-            dir += binding.localDir;
+    for (const MoveAction& move : MOVE_ACTIONS) {
+        if (pInput.isDown(pWindow, move.action)) {
+            dir += move.localDir;
         }
     }
     // Normalize so holding two keys (W + D) isn't faster than one. The length check also
@@ -59,11 +67,11 @@ void CameraController::update(GLFWwindow* pWindow, Camera& pCamera, float pDt) {
         pCamera.move(glm::normalize(dir), moveSpeed * pDt);
     }
 
-    // [ and ] tune mouse sensitivity while held (exponential, so it feels even at any value)
-    if (glfwGetKey(pWindow, GLFW_KEY_LEFT_BRACKET) == GLFW_PRESS) {
+    // Sensitivity actions tune it while held (exponential, so it feels even at any value)
+    if (pInput.isDown(pWindow, Action::SensitivityDown)) {
         sensitivity *= std::exp(-SENSITIVITY_RATE * pDt);
     }
-    if (glfwGetKey(pWindow, GLFW_KEY_RIGHT_BRACKET) == GLFW_PRESS) {
+    if (pInput.isDown(pWindow, Action::SensitivityUp)) {
         sensitivity *= std::exp(SENSITIVITY_RATE * pDt);
     }
     sensitivity = std::clamp(sensitivity, MIN_SENSITIVITY, MAX_SENSITIVITY);
@@ -87,6 +95,18 @@ void CameraController::update(GLFWwindow* pWindow, Camera& pCamera, float pDt) {
 
     // No dt here: a mouse count is a displacement, not a speed
     pCamera.rotate(dx * sensitivity, dy * sensitivity);
+}
+
+void CameraController::applySettings(const Settings& pSettings) {
+    moveSpeed   = std::clamp(pSettings.moveSpeed, MIN_MOVE_SPEED, MAX_MOVE_SPEED);
+    sensitivity = std::clamp(pSettings.mouseSensitivity, MIN_SENSITIVITY, MAX_SENSITIVITY);
+}
+
+Settings CameraController::currentSettings() const {
+    Settings settings;
+    settings.moveSpeed        = moveSpeed;
+    settings.mouseSensitivity = sensitivity;
+    return settings;
 }
 
 void CameraController::onFocusChanged(GLFWwindow* pWindow, bool pFocused) {

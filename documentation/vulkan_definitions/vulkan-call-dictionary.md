@@ -1102,3 +1102,56 @@ one call (the image counterpart of `vmaCreateBuffer`). Takes a
 **Why it matters here:** Creates the depth image in `DepthImage` with
 `VMA_MEMORY_USAGE_AUTO` and the dedicated-memory flag (VMA's guidance for
 render targets). The image view is created separately and destroyed first.
+
+---
+
+## vkCmdCopyBufferToImage
+
+**Category:** Commands (transfer)
+
+**What it does:** Records a copy from a buffer's flat bytes into regions of an
+image. The image must already be in `TRANSFER_DST_OPTIMAL`. Each
+`VkBufferImageCopy` says where the bytes start in the buffer, how rows are
+laid out (`bufferRowLength = 0` means tightly packed), which mip level and
+layer to write, and the image rectangle to fill. The GPU "un-flattens" the
+row-major bytes into the image's tiled memory.
+
+**Why it matters here:** `Texture` uses it to move the decoded PNG pixels from
+the staging buffer into level 0 of the texture image, between the
+`UNDEFINED -> TRANSFER_DST` barrier and the mip generation loop.
+
+---
+
+## vkCmdBlitImage
+
+**Category:** Commands (transfer)
+
+**What it does:** Copies a region of one image into a region of another (or
+another level of the same image) **and can resize it**, filtering as it goes.
+The source must be in `TRANSFER_SRC_OPTIMAL` and the destination in
+`TRANSFER_DST_OPTIMAL`. Source and destination regions are two corner offsets
+each, so they may be different sizes; the filter (`VK_FILTER_LINEAR` here)
+averages neighboring texels when shrinking. Unlike a copy, it needs the format
+to support linear blits.
+
+**Why it matters here:** Generates the mip chain in `Texture`. Each pass blits
+level `i-1` into level `i` at half the width and height (never below 1), which
+is how a 512x256 texture becomes 10 levels down to 1x1. The image is created
+with `TRANSFER_SRC` usage because every level except the last is a blit source.
+
+---
+
+## vkCreateSampler / vkDestroySampler
+
+**Category:** Resources (textures)
+
+**What it does:** Creates a sampler: a set of *reading rules* for images, holding
+no pixels. `VkSamplerCreateInfo` sets the magnify/minify filters, the address
+mode per axis (what happens for UVs outside 0..1), anisotropy, the mipmap mode,
+the LOD range (`minLod`, `maxLod`), and optional comparison for shadow maps.
+
+**Why it matters here:** `Sampler` creates one shared sampler: `LINEAR`
+filtering, `REPEAT` addressing, and `mipmapMode = LINEAR` with
+`maxLod = VK_LOD_CLAMP_NONE`, so each texture's own mip count is the limit. It
+is bound together with the image view as a `COMBINED_IMAGE_SAMPLER` in the
+material descriptor set (set 1, binding 0).

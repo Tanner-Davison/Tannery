@@ -1,4 +1,5 @@
 #include "Renderer.hpp"
+#include "Profiling.hpp"
 #include "vk_enum_string_helper.h"
 #include <array>
 #include <filesystem>
@@ -30,9 +31,11 @@ Renderer::Renderer(const GraphicsContext&     ctx,
                swapchain->formatHandle().format,
                std::array{descriptors.layoutHandle(), mat.layoutHandle()}, // set 0, set 1
                depthImage->getDepthFormat())
+    , gpuProfiler(ctx)
     , commandBuffers(ctx.deviceHandle(),
                      ctx.queueFamilies(),
-                     SyncObjects::MAX_FRAMES_IN_FLIGHT) {}
+                     SyncObjects::MAX_FRAMES_IN_FLIGHT,
+                     gpuProfiler.handle()) {}
 
 SwapchainSupport Renderer::pickSwapchainSupport(VkPhysicalDevice physicalDevice,
                                                 VkSurfaceKHR     surface) {
@@ -62,19 +65,26 @@ void Renderer::drawFrame(const CameraUBO& camera) {
 
     // Once this returns, the GPU is done with this slot's previous frame: its command
     // buffer and its uniform buffer are safe to overwrite.
-    VkResult res = vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
+    VkResult res;
+    {
+        PROFILE_SCOPE("wait for frame fence");
+        res = vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
+    }
     if (res != VK_SUCCESS) {
         throw std::runtime_error(
             std::format("vkWaitForFences failed. VkError: {}", string_VkResult(res)));
     }
 
     uint32_t imageIndex;
-    res = vkAcquireNextImageKHR(device,
-                                swapchain->handle(),
-                                UINT64_MAX,
-                                syncObjects->getImageAvailableSemaphore(currentFrame),
-                                VK_NULL_HANDLE,
-                                &imageIndex);
+    {
+        PROFILE_SCOPE("acquire swapchain image");
+        res = vkAcquireNextImageKHR(device,
+                                    swapchain->handle(),
+                                    UINT64_MAX,
+                                    syncObjects->getImageAvailableSemaphore(currentFrame),
+                                    VK_NULL_HANDLE,
+                                    &imageIndex);
+    }
     if (res == VK_ERROR_OUT_OF_DATE_KHR) {
         recreateSwapchain();
         return;
@@ -85,19 +95,25 @@ void Renderer::drawFrame(const CameraUBO& camera) {
     }
     vkResetFences(device, 1, &fence); // only now that a submit is certain
 
-    descriptors.update(currentFrame, camera);
-    VkCommandBuffer commandBuffer =
-        commandBuffers.record(currentFrame,
-                              swapchain->imagesHandle()[imageIndex],
-                              swapchain->imageViewsHandle()[imageIndex],
-                              depthImage->getDepthImageView(),
-                              depthImage->getDepthImage(),
-                              swapchain->extentHandle(),
-                              pipeline.pipelineHandle(),
-                              pipeline.pipelineLayoutHandle(),
-                              descriptors.setHandle(currentFrame),
-                              material.setHandle(),
-                              mesh);
+    {
+        PROFILE_SCOPE("update uniforms");
+        descriptors.update(currentFrame, camera);
+    }
+    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+    {
+        PROFILE_SCOPE("record commands");
+        commandBuffer = commandBuffers.record(currentFrame,
+                                              swapchain->imagesHandle()[imageIndex],
+                                              swapchain->imageViewsHandle()[imageIndex],
+                                              depthImage->getDepthImageView(),
+                                              depthImage->getDepthImage(),
+                                              swapchain->extentHandle(),
+                                              pipeline.pipelineHandle(),
+                                              pipeline.pipelineLayoutHandle(),
+                                              descriptors.setHandle(currentFrame),
+                                              material.setHandle(),
+                                              mesh);
+    }
 
     VkSemaphore          waitSemaphore = syncObjects->getImageAvailableSemaphore(currentFrame);
     VkSemaphore          signalSemaphore = syncObjects->getRenderCompleteSemaphore(imageIndex);
@@ -113,7 +129,10 @@ void Renderer::drawFrame(const CameraUBO& camera) {
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores    = &signalSemaphore;
 
-    res = vkQueueSubmit(context.graphicsQueue(), 1, &submitInfo, fence);
+    {
+        PROFILE_SCOPE("queue submit");
+        res = vkQueueSubmit(context.graphicsQueue(), 1, &submitInfo, fence);
+    }
     if (res != VK_SUCCESS) {
         throw std::runtime_error(
             std::format("vkQueueSubmit failed. VkError: {}", string_VkResult(res)));
@@ -128,7 +147,10 @@ void Renderer::drawFrame(const CameraUBO& camera) {
     presentInfo.pSwapchains        = swapchains;
     presentInfo.pImageIndices      = &imageIndex;
 
-    res = vkQueuePresentKHR(context.presentQueue(), &presentInfo);
+    {
+        PROFILE_SCOPE("queue present");
+        res = vkQueuePresentKHR(context.presentQueue(), &presentInfo);
+    }
     if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
         recreateSwapchain();
     } else if (res != VK_SUCCESS) {

@@ -14,8 +14,10 @@ void check(VkResult res, const char* what) {
 
 CommandBuffers::CommandBuffers(VkDevice                  pDevice,
                                const QueueFamilyIndices& indices,
-                               uint32_t                  frameCount)
-    : device(pDevice) {
+                               uint32_t                  frameCount,
+                               TracyVkCtx                pProfileCtx)
+    : device(pDevice)
+    , profileCtx(pProfileCtx) {
     VkCommandPoolCreateInfo commandPoolInfo{};
     commandPoolInfo.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     commandPoolInfo.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -60,128 +62,142 @@ VkCommandBuffer CommandBuffers::record(uint32_t         frameIndex,
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT; // submited once
     check(vkBeginCommandBuffer(cmd, &beginInfo), "vkBeginCommandBuffer");
+    {
+        PROFILE_GPU_SCOPE(profileCtx, cmd, "gpu frame");
 
-    VkImageMemoryBarrier barrierBefore{};
-    barrierBefore.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrierBefore.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED;
-    barrierBefore.newLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    barrierBefore.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrierBefore.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrierBefore.image               = image;
-    barrierBefore.subresourceRange    = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    barrierBefore.srcAccessMask       = 0;
-    barrierBefore.dstAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        VkImageMemoryBarrier barrierBefore{};
+        barrierBefore.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrierBefore.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrierBefore.newLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        barrierBefore.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrierBefore.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrierBefore.image               = image;
+        barrierBefore.subresourceRange    = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        barrierBefore.srcAccessMask       = 0;
+        barrierBefore.dstAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-    vkCmdPipelineBarrier(cmd,
-                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                         0,
-                         0,
-                         nullptr,
-                         0,
-                         nullptr,
-                         1,
-                         &barrierBefore);
+        vkCmdPipelineBarrier(cmd,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                             0,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             1,
+                             &barrierBefore);
 
-    const VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}}; // opaque black
+        const VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}}; // opaque black
 
-    VkRenderingAttachmentInfo colorAttachment{};
-    colorAttachment.sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    colorAttachment.imageView   = imageView;
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachment.loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.clearValue  = clearColor;
-    VkRenderingAttachmentInfo depthAttachment{};
-    depthAttachment.sType                   = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depthAttachment.imageView               = pDepthImageView;
-    depthAttachment.imageLayout             = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depthAttachment.loadOp                  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.storeOp                 = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.clearValue.depthStencil = {1.0f, 0};
+        VkRenderingAttachmentInfo colorAttachment{};
+        colorAttachment.sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        colorAttachment.imageView   = imageView;
+        colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        colorAttachment.loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        colorAttachment.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachment.clearValue  = clearColor;
+        VkRenderingAttachmentInfo depthAttachment{};
+        depthAttachment.sType                   = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        depthAttachment.imageView               = pDepthImageView;
+        depthAttachment.imageLayout             = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        depthAttachment.loadOp                  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAttachment.storeOp                 = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.clearValue.depthStencil = {1.0f, 0};
 
-    VkRenderingInfo renderingInfo{};
-    renderingInfo.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    renderingInfo.renderArea.offset    = {0, 0};
-    renderingInfo.renderArea.extent    = extent;
-    renderingInfo.layerCount           = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments    = &colorAttachment;
-    renderingInfo.pDepthAttachment     = &depthAttachment;
+        VkRenderingInfo renderingInfo{};
+        renderingInfo.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        renderingInfo.renderArea.offset    = {0, 0};
+        renderingInfo.renderArea.extent    = extent;
+        renderingInfo.layerCount           = 1;
+        renderingInfo.colorAttachmentCount = 1;
+        renderingInfo.pColorAttachments    = &colorAttachment;
+        renderingInfo.pDepthAttachment     = &depthAttachment;
 
-    VkImageMemoryBarrier memoryBarrier{};
-    memoryBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    memoryBarrier.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED;
-    memoryBarrier.newLayout           = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    memoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    memoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    memoryBarrier.image               = pDepthImage;
-    memoryBarrier.subresourceRange    = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
-    memoryBarrier.srcAccessMask       = 0;
-    memoryBarrier.dstAccessMask       = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                                  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    vkCmdPipelineBarrier(cmd,
-                         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-                             VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, // srcStageMask
-                         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-                             VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, // dstStageMask
-                         0,                                             // dependencyFlags
-                         0,
-                         nullptr, // memory barriers
-                         0,
-                         nullptr, // buffer barriers
-                         1,
-                         &memoryBarrier); // image barriers
-    vkCmdBeginRendering(cmd, &renderingInfo);
+        VkImageMemoryBarrier memoryBarrier{};
+        memoryBarrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        memoryBarrier.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED;
+        memoryBarrier.newLayout           = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        memoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        memoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        memoryBarrier.image               = pDepthImage;
+        memoryBarrier.subresourceRange    = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
+        memoryBarrier.srcAccessMask       = 0;
+        memoryBarrier.dstAccessMask       = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                                      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        vkCmdPipelineBarrier(cmd,
+                             VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                 VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, // srcStageMask
+                             VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                 VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, // dstStageMask
+                             0,                                             // dependencyFlags
+                             0,
+                             nullptr, // memory barriers
+                             0,
+                             nullptr, // buffer barriers
+                             1,
+                             &memoryBarrier); // image barriers
+        {
+            PROFILE_GPU_SCOPE(profileCtx, cmd, "render");
+            vkCmdBeginRendering(cmd, &renderingInfo);
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    // Array index + firstSet = set number: sets[0] -> set 0, sets[1] -> set 1
-    VkDescriptorSet sets[] = {frameSet, materialSet};
-    vkCmdBindDescriptorSets(cmd,
-                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipelineLayout,
-                            0, // firstSet
-                            2, // descriptorSetCount
-                            sets,
-                            0,
-                            nullptr);
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+            // Array index + firstSet = set number: sets[0] -> set 0, sets[1] -> set 1
+            VkDescriptorSet sets[] = {frameSet, materialSet};
+            vkCmdBindDescriptorSets(cmd,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                pipelineLayout,
+                                0, // firstSet
+                                2, // descriptorSetCount
+                                sets,
+                                0,
+                                nullptr);
 
-    VkBuffer     vertexBuffers[] = {mesh.vertexBufferHandle()};
-    VkDeviceSize offsets[]       = {0};
-    vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
-    vkCmdBindIndexBuffer(cmd, mesh.indexBufferHandle(), 0, VK_INDEX_TYPE_UINT16);
+            VkBuffer     vertexBuffers[] = {mesh.vertexBufferHandle()};
+            VkDeviceSize offsets[]       = {0};
+            vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(cmd, mesh.indexBufferHandle(), 0, VK_INDEX_TYPE_UINT16);
 
-    VkViewport viewport{0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f};
-    VkRect2D   scissor{{0, 0}, extent};
-    vkCmdSetViewport(cmd, 0, 1, &viewport);
-    vkCmdSetScissor(cmd, 0, 1, &scissor);
+            VkViewport viewport{0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f};
+            VkRect2D   scissor{{0, 0}, extent};
+            vkCmdSetViewport(cmd, 0, 1, &viewport);
+            vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-    // index count, instance count, firstIndex, vertexOffset, firstInstance
-    vkCmdDrawIndexed(cmd, mesh.indexCount(), 1, 0, 0, 0);
-    vkCmdEndRendering(cmd);
+            // index count, instance count, firstIndex, vertexOffset, firstInstance
+            {
+                PROFILE_GPU_SCOPE(profileCtx, cmd, "draw indexed");
+                vkCmdDrawIndexed(cmd, mesh.indexCount(), 1, 0, 0, 0);
+            }
+            vkCmdEndRendering(cmd);
+        }
 
-    VkImageMemoryBarrier barrierAfter{};
+        VkImageMemoryBarrier barrierAfter{};
 
-    barrierAfter.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrierAfter.oldLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    barrierAfter.newLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    barrierAfter.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrierAfter.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrierAfter.image               = image;
-    barrierAfter.subresourceRange    = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    barrierAfter.srcAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    barrierAfter.dstAccessMask       = 0;
+        barrierAfter.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrierAfter.oldLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        barrierAfter.newLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        barrierAfter.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrierAfter.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrierAfter.image               = image;
+        barrierAfter.subresourceRange    = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        barrierAfter.srcAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        barrierAfter.dstAccessMask       = 0;
 
-    vkCmdPipelineBarrier(cmd,
-                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                         0,
-                         0,
-                         nullptr,
-                         0,
-                         nullptr,
-                         1,
-                         &barrierAfter);
+        vkCmdPipelineBarrier(cmd,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                             VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                             0,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             1,
+                             &barrierAfter);
+
+    }
+
+    // Outside every zone and the render pass: read back finished timestamps (this also
+    // resets the queries it consumed, which needs a recording command buffer)
+    PROFILE_GPU_COLLECT(profileCtx, cmd);
 
     check(vkEndCommandBuffer(cmd), "vkEndCommandBuffer");
     return cmd;

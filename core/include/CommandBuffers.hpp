@@ -1,12 +1,17 @@
 #pragma once
 #include "Mesh.hpp"
+#include "Profiling.hpp"
 #include "queueFamilies.hpp"
 #include <vector>
 #include <vulkan/vulkan.h>
 
 class CommandBuffers {
   public:
-    CommandBuffers(VkDevice pDevice, const QueueFamilyIndices& indices, uint32_t frameCount);
+    // pProfileCtx: from GpuProfiler (nullptr when profiling is compiled out); must outlive this
+    CommandBuffers(VkDevice                  pDevice,
+                   const QueueFamilyIndices& indices,
+                   uint32_t                  frameCount,
+                   TracyVkCtx                pProfileCtx);
     ~CommandBuffers();
 
     // copy and move destruction
@@ -31,4 +36,5 @@ class CommandBuffers {
     std::vector<VkCommandBuffer> commandBuffers;
     VkCommandPool                commandPool = VK_NULL_HANDLE;
     VkDevice                     device      = VK_NULL_HANDLE;
+    TracyVkCtx                   profileCtx  = nullptr; // borrowed: GPU zone timestamps
 };

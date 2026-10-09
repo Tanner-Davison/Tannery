@@ -13,11 +13,17 @@ public:
     // Adds to the angles (radians). Pitch is clamped so the camera can't flip over.
     void rotate(float pDeltaYaw, float pDeltaPitch);
 
+    // Unit vector the camera looks along, from yaw and pitch
+    glm::vec3 forward() const;
+
+    glm::vec3 getPosition() const { return position; }
+
+    float getYaw() const { return yaw; }
+
+    float getPitch() const { return pitch; }
+
 private:
     glm::vec3 position = glm::vec3(0.0f);  // world space
     float yaw          = 0.0f;             // radians, left/right
     float pitch        = 0.0f;             // radians, up/down
-
-    // Unit vector the camera looks along, from yaw and pitch
-    glm::vec3 forward() const;
 };

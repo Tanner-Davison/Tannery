@@ -42,7 +42,10 @@ set(SOURCES
     core/src/Sampler.cpp
     core/src/MaterialDescriptors.cpp
     core/src/Camera.cpp
-    core/src/CameraController.cpp)
+    core/src/CameraController.cpp
+    core/src/InputMap.cpp
+    core/src/Settings.cpp
+    core/src/GpuProfiler.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 
@@ -75,6 +78,14 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 add_custom_target(Shaders DEPENDS ${SHADER_BINARIES})
 add_dependencies(${PROJECT_NAME} Shaders)
 
+# TRACY (profiler, BSD-3-Clause). Client library only; the viewer is a separate program.
+# Version must match the viewer you run: see documentation/profiling.md
+option(FORGE3D_PROFILING "Instrument the engine with Tracy zones" ON)
+set(TRACY_ENABLE ${FORGE3D_PROFILING} CACHE BOOL "" FORCE)
+set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)       # collect nothing until the viewer connects
+set(TRACY_ONLY_LOCALHOST ON CACHE BOOL "" FORCE)  # never listen on the network
+add_subdirectory(deps/tracy EXCLUDE_FROM_ALL)
+
 # TASKFLOW
 set(TF_BUILD_TESTS ON CACHE BOOL "" FORCE)
 set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -84,7 +95,7 @@ add_subdirectory(deps/taskflow EXCLUDE_FROM_ALL) # taskflow
 # LINKING/INCLUDES
 # -------------------------------------------------------------------------------------------
 
-target_link_libraries(tannery PRIVATE glfw Vulkan::Vulkan)
+target_link_libraries(tannery PRIVATE glfw Vulkan::Vulkan Tracy::TracyClient)
 target_link_libraries(${PROJECT_NAME} PUBLIC Taskflow)
 
 if(APPLE)
@@ -107,3 +118,17 @@ target_include_directories(
 # stb is header-only; deps/ lets `#include <stb/stb_image.h>` resolve on every platform
 target_include_directories(${PROJECT_NAME} SYSTEM
                            PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/deps)
+
+# TESTS
+# -------------------------------------------------------------------------------------------
+# Engine tests cover only code with no GLFW/Vulkan dependency, so they need no window or GPU.
+#   cmake --build build --target engine_tests && ctest --test-dir build -R engine_tests
+# (or just run build/engine_tests; exit code 0 = all passed)
+option(FORGE3D_BUILD_TESTS "Build the engine unit tests" ON)
+if(FORGE3D_BUILD_TESTS)
+    enable_testing()
+    add_executable(engine_tests EXCLUDE_FROM_ALL
+        tests/engine_tests.cpp core/src/Camera.cpp core/src/Settings.cpp)
+    target_include_directories(engine_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include)
+    add_test(NAME engine_tests COMMAND engine_tests)
+endif()

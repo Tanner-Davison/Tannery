@@ -2,6 +2,7 @@
 #include "CommandBuffers.hpp"
 #include "DepthImage.hpp"
 #include "FrameDescriptors.hpp"
+#include "GpuProfiler.hpp"
 #include "GraphicsContext.hpp"
 #include "MaterialDescriptors.hpp"
 #include "Mesh.hpp"
@@ -55,5 +56,6 @@ class Renderer {
     // Live for the whole program ( Nothing here depends on the window size )
     FrameDescriptors descriptors;
     Pipeline         pipeline;
+    GpuProfiler      gpuProfiler; // GPU timestamp context; declared before commandBuffers, which borrow it
     CommandBuffers   commandBuffers;
 };

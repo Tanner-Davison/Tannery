@@ -1,5 +1,7 @@
 #include "App.hpp"
 
+#include "Profiling.hpp"
+
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
@@ -34,6 +36,8 @@ App::App(int width, int height, const char* title)
     , renderer(context, window, mesh, material) {
     // Hide and lock the cursor for mouse look (the controller owns capture/release)
     cameraController.capture(window.handle());
+    // Restore the last run's speed/sensitivity (a missing file just gives the defaults)
+    cameraController.applySettings(Settings::load(Settings::defaultPath()));
     glfwSetWindowUserPointer(window.handle(), this);
     // Frame resize callback
     glfwSetFramebufferSizeCallback(window.handle(), [](GLFWwindow* w, int, int) {
@@ -58,23 +62,45 @@ App::App(int width, int height, const char* title)
 void App::run() {
     lastFrameTime = glfwGetTime(); // so the first dt isn't the whole startup time
     while (!glfwWindowShouldClose(window.handle())) {
-        glfwPollEvents();
+        {
+            PROFILE_SCOPE("events");
+            glfwPollEvents();
+        }
 
         const double now = glfwGetTime();
         // Clamp so one long hitch (window drag, debugger pause) can't fling the camera
         const float dt = std::min(static_cast<float>(now - lastFrameTime), MAX_DT);
         lastFrameTime  = now;
 
-        if (glfwGetKey(window.handle(), GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+        if (input.isDown(window.handle(), Action::Quit)) {
             glfwSetWindowShouldClose(window.handle(), GLFW_TRUE);
         }
-        cameraController.update(window.handle(), camera, dt);
-        renderer.drawFrame(makeCamera());
+
+        {
+            PROFILE_SCOPE("update");
+            const int ticks = fixedClock.advance(dt);
+            for (int i = 0; i < ticks; ++i) {
+                fixedUpdate(fixedClock.step());
+            }
+            cameraController.update(window.handle(), camera, input, dt);
+        }
+
+        {
+            PROFILE_SCOPE("draw");
+            renderer.drawFrame(makeCamera());
+        }
+
+        PROFILE_FRAME();
     }
+
+    // Remember the tuned speed/sensitivity for next time
+    cameraController.currentSettings().save(Settings::defaultPath());
     // GPU must finish before any destructor frees what it is
 
     context.waitIdle();
 }
+
+void App::fixedUpdate(float) {}
 
 CameraUBO App::makeCamera() const {
     CameraUBO ubo{};

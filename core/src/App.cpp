@@ -2,6 +2,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <algorithm>
 #include <filesystem>
 #include <vector>
 
@@ -31,19 +32,26 @@ App::App(int width, int height, const char* title)
     , sampler(context)
     , material(context, texture, sampler)
     , renderer(context, window, mesh, material) {
-    // Hide and capture the cursor so mouse movement is unlimited (mouse look)
-    glfwSetInputMode(window.handle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    // Raw device deltas: skips OS pointer acceleration, so the same hand motion always turns
-    // the camera by the same angle. Only works while the cursor is disabled, and not on every
-    // system, so ask first.
-    if (glfwRawMouseMotionSupported()) {
-        glfwSetInputMode(window.handle(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-    }
+    // Hide and lock the cursor for mouse look (the controller owns capture/release)
+    cameraController.capture(window.handle());
     glfwSetWindowUserPointer(window.handle(), this);
     // Frame resize callback
     glfwSetFramebufferSizeCallback(window.handle(), [](GLFWwindow* w, int, int) {
         auto* app = static_cast<App*>(glfwGetWindowUserPointer(w));
         app->renderer.onFramebufferResized();
+    });
+    // Input events go to the controller (the user pointer set above is how we find `this`)
+    glfwSetWindowFocusCallback(window.handle(), [](GLFWwindow* w, int focused) {
+        auto* app = static_cast<App*>(glfwGetWindowUserPointer(w));
+        app->cameraController.onFocusChanged(w, focused == GLFW_TRUE);
+    });
+    glfwSetMouseButtonCallback(window.handle(), [](GLFWwindow* w, int button, int action, int) {
+        auto* app = static_cast<App*>(glfwGetWindowUserPointer(w));
+        app->cameraController.onMouseButton(w, button, action);
+    });
+    glfwSetScrollCallback(window.handle(), [](GLFWwindow* w, double, double yOffset) {
+        auto* app = static_cast<App*>(glfwGetWindowUserPointer(w));
+        app->cameraController.onScroll(yOffset);
     });
 }
 
@@ -53,55 +61,19 @@ void App::run() {
         glfwPollEvents();
 
         const double now = glfwGetTime();
-        const float  dt  = static_cast<float>(now - lastFrameTime);
-        lastFrameTime    = now;
+        // Clamp so one long hitch (window drag, debugger pause) can't fling the camera
+        const float dt = std::min(static_cast<float>(now - lastFrameTime), MAX_DT);
+        lastFrameTime  = now;
 
-        updateCamera(dt);
+        if (glfwGetKey(window.handle(), GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+            glfwSetWindowShouldClose(window.handle(), GLFW_TRUE);
+        }
+        cameraController.update(window.handle(), camera, dt);
         renderer.drawFrame(makeCamera());
     }
     // GPU must finish before any destructor frees what it is
 
     context.waitIdle();
-}
-
-void App::updateCamera(float dt) {
-    GLFWwindow* w = window.handle();
-
-    if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-        glfwSetWindowShouldClose(w, GLFW_TRUE);
-    }
-
-    // Keys -> a camera-space direction (x right, y up, z forward)
-    glm::vec3 dir(0.0f);
-    if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) dir.z += 1.0f;
-    if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) dir.z -= 1.0f;
-    if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) dir.x += 1.0f;
-    if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) dir.x -= 1.0f;
-    if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) dir.y += 1.0f;
-    if (glfwGetKey(w, GLFW_KEY_Q) == GLFW_PRESS) dir.y -= 1.0f;
-    if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) dir.y += 1.0f;
-    if (glfwGetKey(w, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) dir.y -= 1.0f;
-
-    // Normalize so holding two keys (W + D) isn't faster than one
-    if (glm::length(dir) > 0.0f) {
-        camera.move(glm::normalize(dir), MOVE_SPEED * dt);
-    }
-
-    // Mouse: how far the cursor moved since last frame
-    double mouseX = 0.0;
-    double mouseY = 0.0;
-    glfwGetCursorPos(w, &mouseX, &mouseY);
-    if (firstMouse) {
-        lastMouseX = mouseX;
-        lastMouseY = mouseY;
-        firstMouse = false;
-    }
-    const float dx = static_cast<float>(mouseX - lastMouseX);
-    const float dy = static_cast<float>(lastMouseY - mouseY); // screen Y grows downward; flip
-    lastMouseX     = mouseX;
-    lastMouseY     = mouseY;
-
-    camera.rotate(dx * MOUSE_SENSITIVITY, dy * MOUSE_SENSITIVITY);
 }
 
 CameraUBO App::makeCamera() const {

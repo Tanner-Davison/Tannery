@@ -41,7 +41,8 @@ set(SOURCES
     core/src/Texture.cpp
     core/src/Sampler.cpp
     core/src/MaterialDescriptors.cpp
-    core/src/Camera.cpp)
+    core/src/Camera.cpp
+    core/src/CameraController.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 
@@ -99,9 +100,6 @@ target_compile_definitions(
     PRIVATE SHADER_DIR="${CMAKE_BINARY_DIR}/shaders"
             TEXTURE_DIR="${CMAKE_SOURCE_DIR}/data/textures" GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
-target_include_directories(
-    ${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include
-                            ${CMAKE_CURRENT_SOURCE_DIR}/core/src)
 target_include_directories(
     ${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include
                             ${CMAKE_CURRENT_SOURCE_DIR}/core/src)

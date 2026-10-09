@@ -1,5 +1,7 @@
 #include "Sampler.hpp"
+
 #include "vk_enum_string_helper.h"
+
 #include <format>
 #include <stdexcept>
 
@@ -13,8 +15,7 @@ Sampler::Sampler(const GraphicsContext& pContext) : device(pContext.deviceHandle
     // Wrapping: UVs outside 0..1 tile the image
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW =
-        VK_SAMPLER_ADDRESS_MODE_REPEAT; // 3D textures only, set for safety
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;  // 3D textures only, set for safety
 
     // Anisotropy: off until the samplerAnisotropy device feature is enabled
     samplerInfo.anisotropyEnable = VK_FALSE;
@@ -29,10 +30,10 @@ Sampler::Sampler(const GraphicsContext& pContext) : device(pContext.deviceHandle
     samplerInfo.maxLod     = VK_LOD_CLAMP_NONE;
 
     // Unused for this sampler; values match the {} zero-init, written out to be explicit
-    samplerInfo.borderColor   = VK_BORDER_COLOR_INT_OPAQUE_BLACK; // CLAMP_TO_BORDER only
-    samplerInfo.compareEnable = VK_FALSE; // for shadow-map depth compares
-    samplerInfo.compareOp     = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.unnormalizedCoordinates = VK_FALSE; // UVs are 0..1, not pixel indices
+    samplerInfo.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;  // CLAMP_TO_BORDER only
+    samplerInfo.compareEnable           = VK_FALSE;  // for shadow-map depth compares
+    samplerInfo.compareOp               = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;  // UVs are 0..1, not pixel indices
 
     VkResult res = vkCreateSampler(device, &samplerInfo, nullptr, &sampler);
     if (res != VK_SUCCESS) {

@@ -40,7 +40,8 @@ set(SOURCES
     core/src/stb_image.cpp
     core/src/Texture.cpp
     core/src/Sampler.cpp
-    core/src/MaterialDescriptors.cpp)
+    core/src/MaterialDescriptors.cpp
+    core/src/Camera.cpp)
 
 set(SHADER_SOURCES data/shaders/triangle.vert data/shaders/triangle.frag)
 

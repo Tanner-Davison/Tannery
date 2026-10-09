@@ -53,6 +53,57 @@ PNG on disk ─stbi_load─► RGBA8 bytes (CPU) ─memcpy─► staging Buffer
 - `vkCmdCopyBufferToImage` un-flattens row-major bytes into the tiled image;
   `bufferRowLength = 0` means rows are tightly packed.
 
+## Mipmaps
+
+A **mip level** is a half-size, pre-averaged copy of the image. The chain runs from level 0 (the
+original) down to 1x1. The GPU picks the level where one texel is about one screen pixel, so distant
+surfaces read a stable average instead of flickering between texels.
+
+```
+512x256 -> 256x128 -> 128x64 -> ... -> 2x1 -> 1x1     (10 levels; level 0 = original)
+```
+
+- **Count:** `mipLevels = floor(log2(max(w, h))) + 1`. The `+ 1` is the original image. Vulkan will not
+  guess; the count is fixed at `vkCreateImage` time. 8x8 checker = 4 levels. Memory cost is about +33%.
+- **Four settings must agree:** image `mipLevels`, view `levelCount`, barrier `levelCount`/`baseMipLevel`,
+  and the sampler LOD range (`maxLod = VK_LOD_CLAMP_NONE` so one shared sampler fits every texture).
+- **Image usage** gains `TRANSFER_SRC`: each level is the blit source for the next.
+- **Sampler:** `mipmapMode = LINEAR` blends between the two nearest levels (trilinear).
+
+### Generation (inside `immediateSubmit`, after the base copy)
+
+Different levels of one image can sit in different layouts at the same time. After the copy, every
+level is `TRANSFER_DST` but only level 0 has pixels.
+
+```
+for i = 1 .. mipLevels-1:
+    1. barrier  level i-1 : TRANSFER_DST -> TRANSFER_SRC     (write target -> read source)
+    2. blit     level i-1 -> level i, destination half size (never below 1), VK_FILTER_LINEAR
+    3. barrier  level i-1 : TRANSFER_SRC -> SHADER_READ_ONLY (finished for good)
+    4. mipWidth/mipHeight = next sizes
+after the loop, once:
+    5. barrier  level mipLevels-1 : TRANSFER_DST -> SHADER_READ_ONLY   (was only ever a destination)
+```
+
+| Barrier | oldLayout -> newLayout | srcAccess -> dstAccess | stages |
+|---|---|---|---|
+| 1 | `DST -> SRC` | `TRANSFER_WRITE -> TRANSFER_READ` | `TRANSFER -> TRANSFER` |
+| 3 | `SRC -> SHADER_READ_ONLY` | `TRANSFER_READ -> SHADER_READ` | `TRANSFER -> FRAGMENT_SHADER` |
+| 5 | `DST -> SHADER_READ_ONLY` | `TRANSFER_WRITE -> SHADER_READ` | `TRANSFER -> FRAGMENT_SHADER` |
+
+Barrier A (`UNDEFINED -> DST`) now uses `levelCount = mipLevels` so every level starts as a write
+target. The old barrier B is replaced by steps 3 and 5.
+
+Verified by moving the camera back (`lookAt` z from 2 to 8): the spinning checker stays stable instead
+of crawling.
+
+### Mip mistakes worth remembering
+
+- `oldLayout = UNDEFINED` **discards the pixels**; name the real layout when the contents matter.
+- Barrier order matters: the `DST -> SRC` barrier goes **before** the blit, not after.
+- The last-level barrier goes **after** the loop (once), not inside it.
+- Offsets in `VkImageBlit` are signed `int32_t`, and `z` extent is 1 for 2D.
+
 ## Mistakes worth remembering
 
 - A trailing comma in a CMake source list becomes part of the filename.
@@ -66,8 +117,11 @@ PNG on disk ─stbi_load─► RGBA8 bytes (CPU) ─memcpy─► staging Buffer
 
 - The material's set layout lives inside `MaterialDescriptors`; with many materials the layout should
   be owned once (shared) and each material only allocates a set.
-- No mipmaps (`maxLod = 0`); distant textures will shimmer. No anisotropy (needs the
-  `samplerAnisotropy` device feature).
+- No anisotropy (needs the `samplerAnisotropy` device feature); oblique surfaces still look a bit
+  blurry with plain trilinear filtering.
+- `vkCmdBlitImage` requires the format to support linear blit (`FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR`
+  with optimal tiling). `R8G8B8A8_SRGB` does on this GPU; a portable engine should check
+  `vkGetPhysicalDeviceFormatProperties` first.
 - If `immediateSubmit` throws inside the `Texture` constructor, the image leaks (the destructor does
   not run for a half-built object).
 
@@ -76,6 +130,10 @@ PNG on disk ─stbi_load─► RGBA8 bytes (CPU) ─memcpy─► staging Buffer
 - vulkan-tutorial: [Images](https://vulkan-tutorial.com/Texture_mapping/Images),
   [Image view and sampler](https://vulkan-tutorial.com/Texture_mapping/Image_view_and_sampler),
   [Combined image sampler](https://vulkan-tutorial.com/Texture_mapping/Combined_image_sampler)
+- Mipmaps: [vulkan-tutorial: Generating Mipmaps](https://vulkan-tutorial.com/Generating_Mipmaps),
+  [LearnOpenGL: Textures (Mipmaps)](https://learnopengl.com/Getting-started/Textures),
+  [Wikipedia: Mipmap](https://en.wikipedia.org/wiki/Mipmap),
+  [vkCmdBlitImage](https://registry.khronos.org/vulkan/specs/latest/man/html/vkCmdBlitImage.html)
 - Spec: [vkCmdCopyBufferToImage](https://registry.khronos.org/vulkan/specs/latest/man/html/vkCmdCopyBufferToImage.html),
   [VkSamplerCreateInfo](https://registry.khronos.org/vulkan/specs/latest/man/html/VkSamplerCreateInfo.html),
   [VkDescriptorImageInfo](https://registry.khronos.org/vulkan/specs/latest/man/html/VkDescriptorImageInfo.html)

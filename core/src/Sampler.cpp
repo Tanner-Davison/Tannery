@@ -20,11 +20,13 @@ Sampler::Sampler(const GraphicsContext& pContext) : device(pContext.deviceHandle
     samplerInfo.anisotropyEnable = VK_FALSE;
     samplerInfo.maxAnisotropy    = 1.0f;
 
-    // Mips: the texture has one level (0), so lock the LOD range to it
+    // Mips: LINEAR blends between two levels (trilinear). The sampler is shared by many
+    // textures with different level counts, so don't cap maxLod: CLAMP_NONE lets the
+    // image's own level count be the limit.
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     samplerInfo.mipLodBias = 0.0f;
     samplerInfo.minLod     = 0.0f;
-    samplerInfo.maxLod     = 0.0f;
+    samplerInfo.maxLod     = VK_LOD_CLAMP_NONE;
 
     // Unused for this sampler; values match the {} zero-init, written out to be explicit
     samplerInfo.borderColor   = VK_BORDER_COLOR_INT_OPAQUE_BLACK; // CLAMP_TO_BORDER only

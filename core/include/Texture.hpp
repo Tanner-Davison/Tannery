@@ -29,4 +29,5 @@ class Texture {
     VmaAllocation allocation = VK_NULL_HANDLE;
     VkImageView   imageView  = VK_NULL_HANDLE;
     VkExtent2D    size{};
+    uint32_t      mipLevels = 1; // full chain: floor(log2(max(w, h))) + 1
 };

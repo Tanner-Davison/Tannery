@@ -1,92 +1,90 @@
----
-Language: Cpp
-BasedOnStyle: LLVM
-Standard: Latest
-
-# --- Indentation & structure ---
-AccessModifierOffset: -2
+# --- Indentation ---
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
 ContinuationIndentWidth: 4
 ConstructorInitializerIndentWidth: 4
+AccessModifierOffset: -4
 NamespaceIndentation: None
 IndentCaseLabels: true
 IndentPPDirectives: BeforeHash
 IndentWrappedFunctionNames: false
-ColumnLimit: 95
+LambdaBodyIndentation: Signature
+ColumnLimit: 100
 
-# --- Alignment (this is most of what makes it "look clean") ---
+# --- Alignment ---
 AlignAfterOpenBracket: Align
-AlignConsecutiveAssignments: true
-AlignConsecutiveDeclarations: true
-AlignConsecutiveMacros: false
+AlignArrayOfStructures: Left
+AlignConsecutiveAssignments:
+  { Enabled: true, AcrossEmptyLines: false, AcrossComments: false }
+AlignConsecutiveBitFields: { Enabled: true }
+AlignConsecutiveDeclarations: None
+AlignConsecutiveMacros: { Enabled: true }
 AlignEscapedNewlines: Left
-AlignOperands: true
+AlignOperands: AlignAfterOperator
 AlignTrailingComments: true
 PointerAlignment: Left
 ReferenceAlignment: Pointer
+DerivePointerAlignment: false
 
-# --- Braces & short blocks ---
+# --- Braces and short forms ---
 BreakBeforeBraces: Attach
-AllowShortBlocksOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
 AllowShortCaseLabelsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: Empty
-AllowShortLambdasOnASingleLine: Empty
-AllowShortIfStatementsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: Inline
 AllowShortLoopsOnASingleLine: false
 
-# --- Breaking / wrapping ---
-AlwaysBreakAfterReturnType: None
-AlwaysBreakBeforeMultilineStrings: true
+# --- Wrapping ---
 AlwaysBreakTemplateDeclarations: Yes
 BinPackArguments: false
 BinPackParameters: false
 AllowAllArgumentsOnNextLine: false
-BreakBeforeBinaryOperators: None
-BreakBeforeTernaryOperators: true
-BreakStringLiterals: true
 AllowAllParametersOfDeclarationOnNextLine: false
-PackConstructorInitializers: CurrentLine
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeTernaryOperators: true
+BreakStringLiterals: false
 BreakConstructorInitializers: BeforeComma
+BreakInheritanceList: BeforeComma
+PackConstructorInitializers: CurrentLine
+EmptyLineBeforeAccessModifier: LogicalBlock
+EmptyLineAfterAccessModifier: Never
 
-# --- Includes / namespaces ---
-IncludeBlocks: Preserve
-SortIncludes: true
-SortUsingDeclarations: true
+# --- Includes ---
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^"'
+    Priority: 2
+  - Regex: "^<[A-Za-z0-9_]+>$"
+    Priority: 4
+  - Regex: '^<.*(/|\.h|\.hpp|\.inl)>$'
+    Priority: 3
+SortUsingDeclarations: LexicographicNumeric
 FixNamespaceComments: true
 
-# --- Whitespace & misc formatting ---
+# --- Whitespace ---
 Cpp11BracedListStyle: true
-DerivePointerAlignment: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeParens: ControlStatements
+SpacesBeforeTrailingComments: 2
 KeepEmptyLinesAtTheStartOfBlocks: false
 MaxEmptyLinesToKeep: 1
-ReflowComments: true
-SpaceAfterCStyleCast: false
-SpaceAfterTemplateKeyword: true
-SpaceBeforeAssignmentOperators: true
-SpaceInEmptyParentheses: false
-SpacesBeforeTrailingComments: 1
-SpaceBeforeParens: ControlStatements
-SpacesInAngles: false
-SpacesInContainerLiterals: false
-SpacesInCStyleCastParentheses: false
-SpacesInParentheses: false
-SpacesInSquareBrackets: false
-
-# --- Cleanliness extras ---
-InsertNewlineAtEOF: true
 SeparateDefinitionBlocks: Always
+InsertNewlineAtEOF: true
 
-# --- Penalties (control when clang-format decides to break lines) ---
-PenaltyBreakAssignment: 2
-PenaltyBreakBeforeFirstCallParameter: 1
+# --- Comments ---
+ReflowComments: false
+CommentPragmas: "^ IWYU pragma:"
+
+# --- Penalties ---
+PenaltyBreakAssignment: 20
+PenaltyBreakBeforeFirstCallParameter: 40
 PenaltyBreakComment: 300
 PenaltyBreakFirstLessLess: 120
 PenaltyBreakString: 1000
 PenaltyExcessCharacter: 1000000
 PenaltyReturnTypeOnItsOwnLine: 200
-
-DisableFormat: false
-ExperimentalAutoDetectBinPacking: false
-CommentPragmas: "^ IWYU pragma:"
+...

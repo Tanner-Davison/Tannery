@@ -14,7 +14,7 @@ layout(location = 1) out vec2 fragUV;
 
 void main() {
   // right to left model= local to world, view= world to camera, proj= camera to clip
-  gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 0.5);
+  gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
   fragColor = inColor;
   fragUV = inUV;
 }

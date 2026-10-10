@@ -1,8 +1,9 @@
 #pragma once
 
-#include <array>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
+
+#include <array>
 
 /*
  * Vertex.hpp describes how the pipeline reads vertices
@@ -11,7 +12,7 @@
 struct Vertex {
     glm::vec3 pos;
     glm::vec3 color;
-    glm::vec2 uv; // texture coordinate: (0,0) top-left of the image, (1,1) bottom-right
+    glm::vec2 uv;  // texture coordinate: (0,0) top-left of the image, (1,1) bottom-right
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription binding{};
@@ -23,6 +24,14 @@ struct Vertex {
 
     // Input attribute description is {location, binding, format,  offset}
     // R32G32_SFLOAT means 'two 32-bit floats'
+
+    //attrs[2] = {2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)};
+    //            |  |   |                        |
+    //            |  |   |                        +-- offset: where `uv` starts inside one Vertex (bytes)
+    //            |  |   +-- format: what the bytes ARE
+    //            |  +-- binding: which vertex buffer (we only have buffer 0 so far)
+    //            +-- location: which shader input this feeds
+
     static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescription() {
         std::array<VkVertexInputAttributeDescription, 3> attrs{};
         attrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)};
